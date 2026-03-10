@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GestiónObra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- React + Babel (sin compilar, funciona directo en el navegador) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #f1f5f9; color: #1e293b; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 3px; }
+    input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+    @keyframes slideIn  { from { opacity:0; transform:translateY(-6px) } to { opacity:1; transform:translateY(0) } }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
+    @keyframes shake    { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+    @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes spin     { to { transform: rotate(360deg) } }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb !important; }
+    select option { background: #fff; color: #1e293b; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    // ═══════════════════════════════════════════════════════
+    //  ⚙️  CONFIGURACIÓN — REEMPLAZÁ ESTA URL
+    //  Después de publicar el Apps Script, pegá la URL aquí:
+    // ═══════════════════════════════════════════════════════
+    const API_URL = "https://script.google.com/macros/s/AKfycbxICW4cXDPleIQeGyaTx8O5A9_N0rxZpXT7DG4-Wz0qcBi9PU-4gY9i0Eu5vxt15m9yoA/exec
+";
+
+    // ── HELPERS ──────────────────────────────────────────────
+    const parseMoney = (s) => {
+      if (s === null || s === undefined || s === "") return 0;
+      return parseInt(String(s).replace(/\./g, "").replace(/[^\d]/g, ""), 10) || 0;
+    };
+    const fmt = (v) => {
+      const n = parseMoney(v);
+      return n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    };
+    const today = () => new Date().toISOString().split("T")[0];
+    const addMonths = (dateStr, n) => {
+      const d = new Date((dateStr || today()) + "T12:00:00");
+      d.setMonth(d.getMonth() + n);
+      return d.toISOString().split("T")[0];
+    };
+
+    const STATUS = {
+      urgente:    { label:"A Iniciar – Urgente", color:"#dc2626", bg:"#fef2f2", text:"#991b1b", dot:"#ef4444" },
+      pendiente:  { label:"Pendiente",           color:"#d97706", bg:"#fffbeb", text:"#92400e", dot:"#f59e0b" },
+      en_curso:   { label:"En Curso",            color:"#0284c7", bg:"#f0f9ff", text:"#075985", dot:"#38bdf8" },
+      finalizado: { label:"Finalizado",          color:"#16a34a", bg:"#f0fdf4", text:"#166534", dot:"#4ade80" },
+    };
+
+    const T = {
+      bg:"#f1f5f9", surface:"#ffffff", surfaceAlt:"#f8fafc",
+      border:"#e2e8f0", borderMid:"#cbd5e1",
+      text:"#1e293b", textMid:"#475569", textSoft:"#94a3b8",
+      accent:"#2563eb", accentBg:"#eff6ff",
+    };
+
+    // ── API CLIENT ────────────────────────────────────────────
+    const api = {
+      get: async (action) => {
+        const res = await fetch(`${API_URL}?action=${action}`);
+        return res.json();
+      },
+      post: async (action, payload) => {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" }, // Apps Script requiere text/plain para evitar preflight
+          body: JSON.stringify({ action, ...payload }),
+        });
+        return res.json();
+      },
+    };
+
+    // ── MONEY INPUT ───────────────────────────────────────────
+    const MoneyInput = ({ value, onChange, placeholder="0", style:ext={} }) => {
+      const [raw, setRaw] = useState(() => { const n = parseMoney(value); return n ? String(n) : ""; });
+      const [focused, setFocused] = useState(false);
+
+      useEffect(() => {
+        if (!focused) { const n = parseMoney(value); setRaw(n ? String(n) : ""); }
+      }, [value, focused]);
+
+      const handleChange = (e) => {
+        const digits = e.target.value.replace(/[^\d]/g, "");
+        setRaw(digits);
+        onChange(digits === "" ? "" : parseInt(digits, 10));
+      };
+
+      const display = raw ? parseInt(raw, 10).toLocaleString("es-AR", { maximumFractionDigits:0 }) : "";
+      return (
+        <input type="text" inputMode="numeric" value={display} placeholder={placeholder}
+          onChange={handleChange}
+          onFocus={(e) => { setFocused(true); setTimeout(() => e.target.select(), 0); }}
+          onBlur={() => setFocused(false)}
+          style={{ fontVariantNumeric:"tabular-nums", ...ext }} />
+      );
+    };
+
+    // ── SPINNER ───────────────────────────────────────────────
+    const Spinner = ({ size=20, color=T.accent }) => (
+      <div style={{ width:size, height:size, border:`2px solid ${color}33`, borderTop:`2px solid ${color}`, borderRadius:"50%", animation:"spin 0.7s linear infinite", display:"inline-block" }} />
+    );
+
+    // ── CUOTAS MODAL ──────────────────────────────────────────
+    const CuotasModal = ({ trabajo, onSave, onClose }) => {
+      const montoBase = parseMoney(trabajo.monto);
+      const [anticipo, setAnticipo] = useState(parseMoney(trabajo.anticipo));
+
+      const buildCuotas = (n, saldoVal) => {
+        const base = n > 0 ? Math.round(saldoVal / n) : 0;
+        return Array.from({ length: Math.max(1,n) }, (_,i) => ({
+          id: i+1, fecha: addMonths(trabajo.fecha||today(), i+1),
+          indefinida: false, monto: base, pagada: false,
+        }));
+      };
+
+      const [cuotas, setCuotas] = useState(() => {
+        if (trabajo.cuotas && trabajo.cuotas.length)
+          return trabajo.cuotas.map(c => ({ ...c, monto: parseMoney(c.monto) }));
+        return buildCuotas(trabajo.cantCuotas||1, montoBase - parseMoney(trabajo.anticipo));
+      });
+
+      const recalcular = (nuevoAnticipo) => {
+        const saldo = montoBase - nuevoAnticipo;
+        const n = cuotas.length;
+        setCuotas(cuotas.map(c => ({ ...c, monto: n>0 ? Math.round(saldo/n) : 0 })));
+      };
+
+      const handleAnticipo = (val) => {
+        const v = val===""?0:parseMoney(val);
+        setAnticipo(v); recalcular(v);
+      };
+
+      const addCuota = () => {
+        const last = cuotas[cuotas.length-1];
+        setCuotas([...cuotas, { id:Date.now(), pagada:false, indefinida:false, monto:0,
+          fecha: last&&!last.indefinida ? addMonths(last.fecha,1) : addMonths(today(),1) }]);
+      };
+
+      const removeCuota = (id) => setCuotas(cuotas.filter(c=>c.id!==id));
+      const upd = (id,field,val) => setCuotas(cuotas.map(c=>c.id===id?{...c,[field]:val}:c));
+
+      const total = cuotas.reduce((s,c)=>s+parseMoney(c.monto),0);
+      const diff  = total - (montoBase - anticipo);
+      const inBase = { background:T.surfaceAlt, border:`1px solid ${T.border}`, borderRadius:8, padding:"7px 10px", color:T.text, fontSize:13, outline:"none", width:"100%" };
+
+      return (
+        <div style={{ position:"fixed",inset:0,background:"rgba(15,23,42,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(4px)" }}>
+          <div style={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:"min(600px,95vw)",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.15)" }}>
+
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+              <div>
+                <h3 style={{ color:T.text,fontSize:18,fontWeight:700,margin:0,fontFamily:"'DM Serif Display',serif" }}>Gestión de Cuotas</h3>
+                <p style={{ color:T.textMid,fontSize:12,margin:"4px 0 0" }}>{trabajo.obra}</p>
+              </div>
+              <button onClick={onClose} style={{ background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer" }}>✕</button>
+            </div>
+
+            {/* Resumen financiero */}
+            <div style={{ background:T.surfaceAlt,borderRadius:12,padding:"14px 18px",marginBottom:20,border:`1px solid ${T.border}` }}>
+              <div style={{ display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-end" }}>
+                <div>
+                  <p style={{ color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.07em",margin:0 }}>MONTO TOTAL</p>
+                  <p style={{ color:T.text,fontWeight:700,margin:"3px 0 0",fontSize:16,fontVariantNumeric:"tabular-nums" }}>$ {fmt(montoBase)}</p>
+                </div>
+                <div>
+                  <p style={{ color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.07em",margin:"0 0 4px" }}>ANTICIPO (editable)</p>
+                  <MoneyInput value={anticipo} onChange={handleAnticipo}
+                    style={{ ...inBase,width:130,fontWeight:700,color:"#d97706",fontSize:14 }} />
+                </div>
+                <div>
+                  <p style={{ color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.07em",margin:0 }}>SALDO A FINANCIAR</p>
+                  <p style={{ color:T.accent,fontWeight:700,margin:"3px 0 0",fontSize:16,fontVariantNumeric:"tabular-nums" }}>$ {fmt(montoBase-anticipo)}</p>
+                </div>
+              </div>
+              <p style={{ color:T.textSoft,fontSize:11,margin:"10px 0 0" }}>💡 Modificar el anticipo recalcula automáticamente todas las cuotas.</p>
+            </div>
+
+            {/* Headers */}
+            <div style={{ display:"grid",gridTemplateColumns:"24px 1fr 130px 90px 90px 28px",gap:6,paddingBottom:6,borderBottom:`1px solid ${T.border}`,marginBottom:8 }}>
+              {["#","Fecha de cobro","Monto ($)","","",""].map((h,i)=>
+                <span key={i} style={{ color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.06em" }}>{h}</span>
+              )}
+            </div>
+
+            {cuotas.map((c,i) => (
+              <div key={c.id} style={{ display:"grid",gridTemplateColumns:"24px 1fr 130px 90px 90px 28px",gap:6,alignItems:"center",marginBottom:7 }}>
+                <span style={{ color:T.textSoft,fontSize:12,textAlign:"right" }}>{i+1}</span>
+                <div style={{ display:"flex",gap:5,alignItems:"center" }}>
+                  {c.indefinida
+                    ? <span style={{ flex:1,padding:"7px 10px",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,fontSize:13,color:T.textMid }}>Indefinida</span>
+                    : <input type="date" value={c.fecha} onChange={e=>upd(c.id,"fecha",e.target.value)} style={{ flex:1,background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text,fontSize:13,outline:"none" }} />
+                  }
+                  <label style={{ display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontSize:11,color:T.textSoft,whiteSpace:"nowrap" }}>
+                    <input type="checkbox" checked={!!c.indefinida} onChange={e=>upd(c.id,"indefinida",e.target.checked)} style={{ accentColor:T.accent,cursor:"pointer" }} />
+                    Indef.
+                  </label>
+                </div>
+                <MoneyInput value={c.monto} onChange={v=>upd(c.id,"monto",v===""?0:v)}
+                  style={{ background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",color:T.text,fontSize:13,width:"100%" }} />
+                <button onClick={()=>upd(c.id,"pagada",!c.pagada)}
+                  style={{ padding:"6px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309" }}>
+                  {c.pagada?"✓ PAG.":"PEND."}
+                </button>
+                <button onClick={()=>removeCuota(c.id)} style={{ background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:20,padding:0,textAlign:"center",lineHeight:1 }}>×</button>
+              </div>
+            ))}
+
+            <button onClick={addCuota} style={{ width:"100%",padding:"8px",background:"transparent",border:`1px dashed ${T.borderMid}`,borderRadius:8,color:T.textMid,cursor:"pointer",marginTop:4,fontSize:13 }}>
+              + Agregar cuota
+            </button>
+
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,paddingTop:16,borderTop:`1px solid ${T.border}` }}>
+              <span style={{ fontSize:13,fontWeight:600,color:Math.abs(diff)<2?"#16a34a":diff>0?"#dc2626":"#d97706" }}>
+                Total: $ {fmt(total)} {Math.abs(diff)>=2?(diff>0?` (excede $${fmt(diff)})`:`(faltan $${fmt(-diff)})`):" ✓"}
+              </span>
+              <div style={{ display:"flex",gap:8 }}>
+                <button onClick={onClose} style={{ padding:"8px 18px",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13 }}>Cancelar</button>
+                <button onClick={()=>onSave(cuotas,anticipo)} style={{ padding:"8px 20px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600 }}>Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ── TRABAJO CARD (colapsable) ─────────────────────────────
+    const TrabajoCard = ({ t, onDelete, onStatusChange, onCuotasModal, onFactura, saving }) => {
+      const [open, setOpen] = useState(false);
+      const [editFac, setEditFac] = useState(false);
+      const [facVal, setFacVal]   = useState("");
+
+      const st = STATUS[t.estado] || STATUS.pendiente;
+      const monto    = parseMoney(t.monto);
+      const anticipo = parseMoney(t.anticipo);
+      const saldo    = monto - anticipo;
+      const cuotasPag = (t.cuotas||[]).filter(c=>c.pagada).length;
+      const cuotasTot = (t.cuotas||[]).length;
+      const cobrado   = (t.cuotas||[]).filter(c=>c.pagada).reduce((s,c)=>s+parseMoney(c.monto),0);
+      const pendiente = saldo - cobrado;
+
+      return (
+        <div style={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)",opacity:saving?0.7:1,transition:"opacity 0.2s" }}>
+
+          {/* Header colapsable */}
+          <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex",alignItems:"center",cursor:"pointer",userSelect:"none" }}>
+            <div style={{ width:6,alignSelf:"stretch",background:st.dot,borderRadius:"14px 0 0 14px",flexShrink:0 }} />
+            <div style={{ flex:1,display:"flex",alignItems:"center",gap:12,padding:"13px 16px" }}>
+              <div style={{ width:36,height:36,borderRadius:10,background:st.bg,border:`1.5px solid ${st.color}55`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                <div style={{ width:14,height:14,borderRadius:"50%",background:st.dot,boxShadow:`0 0 6px ${st.dot}88` }} />
+              </div>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
+                  <span style={{ fontWeight:700,color:T.text,fontSize:14,fontFamily:"'DM Serif Display',serif" }}>{t.obra}</span>
+                  <span style={{ padding:"1px 8px",borderRadius:20,background:st.bg,color:st.text,fontSize:10,fontWeight:700,border:`1px solid ${st.color}44` }}>{st.label}</span>
+                  {t.facturado && <span style={{ padding:"1px 8px",borderRadius:20,background:"#f0fdf4",color:"#166534",fontSize:10,fontWeight:700,border:"1px solid #bbf7d0" }}>🧾 #{t.nroFactura}</span>}
+                </div>
+                <p style={{ margin:"2px 0 0",color:T.textSoft,fontSize:11 }}>{t.fecha}{t.descripcion?` · ${t.descripcion.slice(0,55)}${t.descripcion.length>55?"…":""}`:""}</p>
+              </div>
+              <div style={{ display:"flex",gap:16,flexShrink:0,marginRight:4 }}>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:0,color:T.textSoft,fontSize:10,fontWeight:600 }}>TOTAL</p>
+                  <p style={{ margin:0,color:T.text,fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums" }}>$ {fmt(monto)}</p>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <p style={{ margin:0,color:T.textSoft,fontSize:10,fontWeight:600 }}>PENDIENTE</p>
+                  <p style={{ margin:0,color:pendiente>0?"#dc2626":"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums" }}>$ {fmt(pendiente)}</p>
+                </div>
+                {cuotasTot>0&&<div style={{ textAlign:"right" }}>
+                  <p style={{ margin:0,color:T.textSoft,fontSize:10,fontWeight:600 }}>CUOTAS</p>
+                  <p style={{ margin:0,color:T.textMid,fontSize:13,fontWeight:700 }}>{cuotasPag}/{cuotasTot}</p>
+                </div>}
+              </div>
+              <span style={{ color:T.textSoft,fontSize:11,transition:"transform 0.25s",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)" }}>▼</span>
+            </div>
+          </div>
+
+          {/* Detalle expandido */}
+          {open && (
+            <div style={{ borderTop:`1px solid ${T.border}`,padding:"16px 18px 18px",animation:"slideIn 0.2s ease-out" }}>
+              {/* Financiero */}
+              <div style={{ display:"flex",gap:10,marginBottom:16,flexWrap:"wrap" }}>
+                {[["Total",fmt(monto),T.text],["Anticipo",fmt(anticipo),"#d97706"],["Saldo",fmt(saldo),T.accent],["Cobrado",fmt(cobrado),"#16a34a"],["Pendiente",fmt(pendiente),pendiente>0?"#dc2626":"#16a34a"]].map(([l,v,c])=>(
+                  <div key={l} style={{ background:T.surfaceAlt,borderRadius:8,padding:"8px 12px",minWidth:90,border:`1px solid ${T.border}` }}>
+                    <p style={{ margin:0,color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.06em" }}>{l.toUpperCase()}</p>
+                    <p style={{ margin:"2px 0 0",color:c,fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums" }}>$ {v}</p>
+                  </div>
+                ))}
+                {cuotasTot>0&&<div style={{ background:T.surfaceAlt,borderRadius:8,padding:"8px 12px",minWidth:80,border:`1px solid ${T.border}` }}>
+                  <p style={{ margin:0,color:T.textSoft,fontSize:10,fontWeight:700,letterSpacing:"0.06em" }}>CUOTAS</p>
+                  <p style={{ margin:"2px 0 0",color:T.textMid,fontSize:13,fontWeight:700 }}>{cuotasPag}/{cuotasTot}</p>
+                </div>}
+              </div>
+
+              {/* Detalle cuotas */}
+              {cuotasTot>0&&(
+                <div style={{ background:T.surfaceAlt,borderRadius:10,padding:"10px 14px",marginBottom:14,border:`1px solid ${T.border}` }}>
+                  <p style={{ margin:"0 0 8px",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:"0.06em" }}>DETALLE DE CUOTAS</p>
+                  {(t.cuotas||[]).map((c,i)=>(
+                    <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:i<cuotasTot-1?`1px dashed ${T.border}`:"none" }}>
+                      <span style={{ color:T.textMid,fontSize:12 }}>Cuota {i+1} · {c.indefinida?"Indefinida":c.fecha}</span>
+                      <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+                        <span style={{ color:T.text,fontWeight:600,fontSize:12,fontVariantNumeric:"tabular-nums" }}>$ {fmt(c.monto)}</span>
+                        <span style={{ padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309" }}>
+                          {c.pagada?"✓ PAGADA":"PENDIENTE"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Acciones */}
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+                <select value={t.estado} onChange={e=>onStatusChange(t.id,e.target.value)}
+                  style={{ padding:"6px 10px",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,color:T.textMid,fontSize:12,cursor:"pointer",outline:"none" }}>
+                  {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                </select>
+                <button onClick={()=>onCuotasModal(t)} style={{ padding:"6px 14px",background:T.accentBg,border:`1px solid #bfdbfe`,borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontWeight:600 }}>
+                  💰 Gestionar cuotas
+                </button>
+                {editFac ? (
+                  <div style={{ display:"flex",gap:6 }}>
+                    <input value={facVal} onChange={e=>setFacVal(e.target.value)} placeholder="Nº factura"
+                      style={{ padding:"6px 10px",background:T.surfaceAlt,border:`1px solid ${T.accent}`,borderRadius:8,color:T.text,fontSize:12,width:120,outline:"none" }} />
+                    <button onClick={()=>{onFactura(t.id,facVal);setEditFac(false);setFacVal("");}} style={{ padding:"6px 12px",background:"#10b981",border:"none",borderRadius:8,color:"white",fontSize:12,cursor:"pointer" }}>✓</button>
+                    <button onClick={()=>setEditFac(false)} style={{ padding:"6px 12px",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:8,color:T.textMid,fontSize:12,cursor:"pointer" }}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={()=>{setEditFac(true);setFacVal(t.nroFactura||"");}}
+                    style={{ padding:"6px 14px",background:t.facturado?"#f0fdf4":T.surfaceAlt,border:`1px solid ${t.facturado?"#bbf7d0":T.border}`,borderRadius:8,color:t.facturado?"#16a34a":T.textMid,fontSize:12,cursor:"pointer",fontWeight:t.facturado?600:400 }}>
+                    🧾 {t.facturado?`Factura #${t.nroFactura}`:"Registrar factura"}
+                  </button>
+                )}
+                <button onClick={()=>onDelete(t.id)} style={{ marginLeft:"auto",padding:"6px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,color:"#dc2626",fontSize:12,cursor:"pointer" }}>
+                  🗑 Eliminar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ── LOGIN ─────────────────────────────────────────────────
+    const Login = ({ onLogin }) => {
+      const [user,setUser]=useState(""); const [pass,setPass]=useState("");
+      const [err,setErr]=useState(""); const [shake,setShake]=useState(false);
+      const handleSubmit = () => {
+        if (user.trim().toLowerCase()==="admin" && pass.trim()==="1234") onLogin();
+        else { setErr("Usuario o contraseña incorrectos"); setShake(true); setTimeout(()=>setShake(false),500); }
+      };
+      return (
+        <div style={{ minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <div style={{ animation:shake?"shake 0.4s":"fadeUp 0.5s ease-out",width:"min(400px,92vw)",background:T.surface,border:`1px solid ${T.border}`,borderRadius:20,padding:40,boxShadow:"0 8px 40px rgba(0,0,0,0.10)" }}>
+            <div style={{ textAlign:"center",marginBottom:36 }}>
+              <div style={{ width:56,height:56,background:"linear-gradient(135deg,#2563eb,#4f46e5)",borderRadius:16,margin:"0 auto 16px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,boxShadow:"0 6px 20px rgba(37,99,235,0.3)" }}>🏗️</div>
+              <h1 style={{ color:T.text,fontSize:26,fontWeight:400,margin:0,fontFamily:"'DM Serif Display',serif" }}>GestiónObra</h1>
+              <p style={{ color:T.textMid,fontSize:13,margin:"6px 0 0" }}>Sistema de gestión de trabajos y pagos</p>
+            </div>
+            {[["USUARIO","text",user,setUser,"admin"],["CONTRASEÑA","password",pass,setPass,"••••"]].map(([lbl,type,val,set,ph])=>(
+              <div key={lbl} style={{ marginBottom:16 }}>
+                <label style={{ display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:"0.08em",marginBottom:8 }}>{lbl}</label>
+                <input type={type} value={val} placeholder={ph} onChange={e=>set(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+                  style={{ width:"100%",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 16px",color:T.text,fontSize:15 }}
+                  onFocus={e=>e.target.style.borderColor="#2563eb"} onBlur={e=>e.target.style.borderColor=T.border} />
+              </div>
+            ))}
+            {err&&<p style={{ color:"#ef4444",fontSize:13,textAlign:"center",marginBottom:16,background:"#fef2f2",padding:"8px 12px",borderRadius:8 }}>{err}</p>}
+            <button onClick={handleSubmit} style={{ width:"100%",padding:"13px",background:"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:15,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 16px rgba(37,99,235,0.3)" }}>
+              Ingresar →
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // ── APP PRINCIPAL ─────────────────────────────────────────
+    const App = () => {
+      const [loggedIn,setLoggedIn]=useState(false);
+      const [trabajos,setTrabajos]=useState([]);
+      const [loading,setLoading]=useState(true);
+      const [savingId,setSavingId]=useState(null);
+      const [activeTab,setActiveTab]=useState("trabajos");
+      const [cuotasModal,setCuotasModal]=useState(null);
+      const [apiError,setApiError]=useState("");
+
+      const emptyForm={fecha:today(),obra:"",descripcion:"",estado:"pendiente",monto:"",anticipo:"",cantCuotas:"1"};
+      const [form,setForm]=useState(emptyForm);
+      const [saved,setSaved]=useState(false);
+      const [saving,setSaving]=useState(false);
+
+      // Cargar datos desde Google Sheets
+      const loadTrabajos = useCallback(async () => {
+        setLoading(true); setApiError("");
+        try {
+          const res = await api.get("getAll");
+          if (res.error) { setApiError("Error API: " + res.error); setTrabajos([]); }
+          else setTrabajos(res.trabajos || []);
+        } catch (e) {
+          setApiError("No se pudo conectar con la API. Verificá la URL del script.");
+        }
+        setLoading(false);
+      }, []);
+
+      useEffect(() => { if (loggedIn) loadTrabajos(); }, [loggedIn]);
+
+      const setField = (k,v) => setForm(f=>({...f,[k]:v}));
+
+      const calcCuotas = (monto,anticipo,cant) => {
+        const s = parseMoney(monto)-parseMoney(anticipo);
+        const n = Math.max(1,parseInt(cant)||1);
+        return Array.from({length:n},(_,i)=>({ id:i+1,fecha:addMonths(today(),i+1),indefinida:false,monto:Math.round(s/n),pagada:false }));
+      };
+
+      const handleAdd = async () => {
+        if (!form.obra.trim()) return;
+        setSaving(true);
+        const nuevo = { ...form, id:String(Date.now()), monto:parseMoney(form.monto), anticipo:parseMoney(form.anticipo), cantCuotas:parseInt(form.cantCuotas)||1, cuotas:calcCuotas(form.monto,form.anticipo,form.cantCuotas), facturado:false, nroFactura:"" };
+        try {
+          const res = await api.post("save", { data: nuevo });
+          if (res.ok) { setTrabajos([nuevo,...trabajos]); setForm(emptyForm); setSaved(true); setTimeout(()=>setSaved(false),2000); }
+          else setApiError("Error al guardar: " + res.error);
+        } catch(e) { setApiError("Error de conexión al guardar."); }
+        setSaving(false);
+      };
+
+      const updateRemote = async (updated) => {
+        setSavingId(updated.id);
+        try {
+          const res = await api.post("update", { data: updated });
+          if (!res.ok) setApiError("Error al actualizar: " + res.error);
+        } catch(e) { setApiError("Error de conexión al actualizar."); }
+        setSavingId(null);
+      };
+
+      const handleDelete = async (id) => {
+        if (!confirm("¿Eliminar este trabajo?")) return;
+        setSavingId(id);
+        try {
+          const res = await api.post("delete", { id });
+          if (res.ok) setTrabajos(t=>t.filter(x=>x.id!==id));
+          else setApiError("Error al eliminar: " + res.error);
+        } catch(e) { setApiError("Error de conexión al eliminar."); }
+        setSavingId(null);
+      };
+
+      const handleStatusChange = async (id, estado) => {
+        const updated = trabajos.map(t=>t.id===id?{...t,estado}:t);
+        setTrabajos(updated);
+        await updateRemote(updated.find(t=>t.id===id));
+      };
+
+      const handleSaveCuotas = async (id, cuotas, anticipo) => {
+        const updated = trabajos.map(t=>t.id===id?{...t,cuotas,anticipo}:t);
+        setTrabajos(updated);
+        await updateRemote(updated.find(t=>t.id===id));
+        setCuotasModal(null);
+      };
+
+      const handleFactura = async (id, nro) => {
+        const updated = trabajos.map(t=>t.id===id?{...t,facturado:true,nroFactura:nro}:t);
+        setTrabajos(updated);
+        await updateRemote(updated.find(t=>t.id===id));
+      };
+
+      const alertas = trabajos.flatMap(t=>{
+        const arr=[];
+        (t.cuotas||[]).forEach(c=>{
+          if(!c.pagada&&!c.indefinida){
+            const diff=Math.ceil((new Date(c.fecha)-new Date())/86400000);
+            if(diff<=30) arr.push({tipo:"pago",trabajo:t.obra,fecha:c.fecha,monto:c.monto,diff,id:`${t.id}-${c.id}`});
+          }
+        });
+        if(!t.facturado&&t.estado==="finalizado") arr.push({tipo:"factura",trabajo:t.obra,diff:999,id:`fac-${t.id}`});
+        return arr;
+      }).sort((a,b)=>a.diff-b.diff);
+
+      const inputStyle={ width:"100%",background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 14px",color:T.text,fontSize:13,outline:"none" };
+      const labelStyle={ display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:"0.07em",marginBottom:6 };
+
+      if (!loggedIn) return <Login onLogin={()=>setLoggedIn(true)} />;
+
+      return (
+        <div style={{ minHeight:"100vh",background:T.bg }}>
+
+          {/* Header */}
+          <div style={{ background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <span style={{ fontSize:20 }}>🏗️</span>
+              <span style={{ fontFamily:"'DM Serif Display',serif",fontSize:18,color:T.text }}>GestiónObra</span>
+            </div>
+            <div style={{ display:"flex",gap:4 }}>
+              {[["trabajos","📋 Trabajos"],["alertas","🔔 Alertas"]].map(([k,v])=>(
+                <button key={k} onClick={()=>setActiveTab(k)}
+                  style={{ padding:"5px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:activeTab===k?T.accentBg:"transparent",color:activeTab===k?T.accent:T.textMid,position:"relative" }}>
+                  {v}
+                  {k==="alertas"&&alertas.length>0&&<span style={{ position:"absolute",top:4,right:6,width:7,height:7,background:"#ef4444",borderRadius:"50%",animation:"pulse 2s infinite" }}/>}
+                </button>
+              ))}
+              <button onClick={loadTrabajos} title="Recargar desde Sheets" style={{ padding:"5px 10px",borderRadius:8,border:`1px solid ${T.border}`,background:"none",cursor:"pointer",fontSize:12,color:T.textMid }}>↺</button>
+            </div>
+            <button onClick={()=>setLoggedIn(false)} style={{ background:"none",border:`1px solid ${T.border}`,borderRadius:8,padding:"4px 10px",color:T.textMid,cursor:"pointer",fontSize:11 }}>Salir</button>
+          </div>
+
+          {/* API Error banner */}
+          {apiError&&(
+            <div style={{ background:"#fef2f2",borderBottom:"1px solid #fecaca",padding:"8px 20px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <span style={{ color:"#dc2626",fontSize:13 }}>⚠️ {apiError}</span>
+              <button onClick={()=>setApiError("")} style={{ background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:16 }}>✕</button>
+            </div>
+          )}
+
+          {activeTab==="alertas" ? (
+            <div style={{ padding:20,maxWidth:800,margin:"0 auto" }}>
+              <h2 style={{ fontFamily:"'DM Serif Display',serif",fontSize:22,margin:"0 0 16px",color:T.text }}>Centro de Alertas</h2>
+              {alertas.length===0
+                ? <div style={{ textAlign:"center",padding:50,color:T.textSoft,background:T.surface,borderRadius:16,border:`1px solid ${T.border}` }}>
+                    <div style={{ fontSize:36,marginBottom:10 }}>✅</div><p style={{ margin:0 }}>Sin alertas pendientes</p>
+                  </div>
+                : alertas.map(a=>(
+                  <div key={a.id} style={{ background:T.surface,border:`1px solid ${a.tipo==="factura"?"#fde68a":a.diff<=7?"#fecaca":"#bfdbfe"}`,borderRadius:12,padding:"14px 18px",marginBottom:10,display:"flex",alignItems:"center",gap:14,boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ width:38,height:38,borderRadius:10,background:a.tipo==="factura"?"#fef9c3":a.diff<=7?"#fef2f2":"#eff6ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>
+                      {a.tipo==="factura"?"🧾":a.diff<=0?"🚨":a.diff<=7?"⚠️":"📅"}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ margin:0,fontWeight:600,color:T.text,fontSize:14 }}>{a.trabajo}</p>
+                      {a.tipo==="pago"
+                        ? <p style={{ margin:"2px 0 0",color:T.textMid,fontSize:12 }}>Cuota <strong style={{ color:T.accent,fontVariantNumeric:"tabular-nums" }}>$ {fmt(a.monto)}</strong> · {a.diff<=0?<span style={{ color:"#ef4444" }}>VENCIDA hace {Math.abs(a.diff)} días</span>:<span>Vence en {a.diff} día{a.diff!==1?"s":""} ({a.fecha})</span>}</p>
+                        : <p style={{ margin:"2px 0 0",color:"#d97706",fontSize:12 }}>Trabajo finalizado sin facturar</p>
+                      }
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          ) : (
+            <div style={{ display:"flex",height:"calc(100vh - 56px)",overflow:"hidden" }}>
+
+              {/* Panel izquierdo */}
+              <div style={{ width:280,minWidth:280,background:T.surface,borderRight:`1px solid ${T.border}`,padding:16,overflowY:"auto" }}>
+                <h3 style={{ fontFamily:"'DM Serif Display',serif",fontSize:17,margin:"0 0 16px",color:T.text }}>Nueva Entrada</h3>
+
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>FECHA</label>
+                  <input type="date" value={form.fecha} onChange={e=>setField("fecha",e.target.value)} style={inputStyle}/>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>OBRA / PROYECTO</label>
+                  <input value={form.obra} onChange={e=>setField("obra",e.target.value)} placeholder="Nombre de la obra" style={inputStyle}/>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>DESCRIPCIÓN</label>
+                  <textarea value={form.descripcion} onChange={e=>setField("descripcion",e.target.value)} placeholder="Detalles..." rows={2} style={{ ...inputStyle,resize:"vertical",lineHeight:1.5 }}/>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>ESTADO</label>
+                  <select value={form.estado} onChange={e=>setField("estado",e.target.value)} style={{ ...inputStyle,cursor:"pointer" }}>
+                    {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>MONTO ($)</label>
+                  <MoneyInput value={form.monto} onChange={v=>setField("monto",v)} style={inputStyle}/>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={labelStyle}>ANTICIPO ($)</label>
+                  <MoneyInput value={form.anticipo} onChange={v=>setField("anticipo",v)} style={inputStyle}/>
+                </div>
+
+                {parseMoney(form.monto)>0&&(
+                  <div style={{ background:T.accentBg,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,border:`1px solid #bfdbfe` }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",color:T.textMid,marginBottom:2 }}>
+                      <span>Saldo</span><span style={{ color:T.accent,fontWeight:700,fontVariantNumeric:"tabular-nums" }}>$ {fmt(parseMoney(form.monto)-parseMoney(form.anticipo))}</span>
+                    </div>
+                    {parseInt(form.cantCuotas)>0&&(
+                      <div style={{ display:"flex",justifyContent:"space-between",color:T.textMid }}>
+                        <span>Por cuota</span><span style={{ color:"#059669",fontWeight:700,fontVariantNumeric:"tabular-nums" }}>$ {fmt(Math.round((parseMoney(form.monto)-parseMoney(form.anticipo))/(parseInt(form.cantCuotas)||1)))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginBottom:16 }}>
+                  <label style={labelStyle}>CANT. CUOTAS</label>
+                  <input type="number" min="1" max="60" value={form.cantCuotas} onChange={e=>setField("cantCuotas",e.target.value)} style={inputStyle}/>
+                </div>
+
+                <button onClick={handleAdd} disabled={saving}
+                  style={{ width:"100%",padding:"11px",background:saved?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:600,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 14px rgba(37,99,235,0.25)" }}>
+                  {saving?<><Spinner size={16} color="white"/> Guardando…</>:saved?"✓ Guardado":"+ Agregar Trabajo"}
+                </button>
+
+                <div style={{ marginTop:16,padding:"8px 12px",background:T.surfaceAlt,borderRadius:8,border:`1px solid ${T.border}`,textAlign:"center" }}>
+                  <p style={{ color:T.textSoft,fontSize:11,margin:0 }}>☁️ Google Sheets · {trabajos.length} trabajo{trabajos.length!==1?"s":""}</p>
+                </div>
+              </div>
+
+              {/* Panel derecho */}
+              <div style={{ flex:1,overflowY:"auto",padding:16 }}>
+                {loading
+                  ? <div style={{ textAlign:"center",padding:60,color:T.textSoft,display:"flex",flexDirection:"column",alignItems:"center",gap:16 }}><Spinner size={32}/><p>Cargando desde Google Sheets…</p></div>
+                  : trabajos.length===0
+                    ? <div style={{ textAlign:"center",padding:60,color:T.textSoft,background:T.surface,borderRadius:16,border:`1px solid ${T.border}`,maxWidth:460,margin:"20px auto" }}>
+                        <div style={{ fontSize:36,marginBottom:10 }}>📋</div>
+                        <p style={{ margin:0,fontSize:15,color:T.textMid }}>Sin trabajos registrados</p>
+                        <p style={{ margin:"6px 0 0",fontSize:12 }}>Agregá tu primer trabajo desde el panel izquierdo</p>
+                      </div>
+                    : trabajos.map(t=>(
+                        <TrabajoCard key={t.id} t={t} saving={savingId===t.id}
+                          onDelete={handleDelete} onStatusChange={handleStatusChange}
+                          onCuotasModal={setCuotasModal} onFactura={handleFactura} />
+                      ))
+                }
+              </div>
+            </div>
+          )}
+
+          {cuotasModal&&(
+            <CuotasModal trabajo={cuotasModal}
+              onSave={(cuotas,ant)=>handleSaveCuotas(cuotasModal.id,cuotas,ant)}
+              onClose={()=>setCuotasModal(null)} />
+          )}
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
