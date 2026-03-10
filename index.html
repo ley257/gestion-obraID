@@ -9,7 +9,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'DM Sans',sans-serif;background:#f1f5f9;color:#1e293b}
+    body{font-family:'DM Sans',sans-serif;background:#f1f5f9;color:#1e293b;padding-bottom:56px}
     input:focus,select:focus,textarea:focus{outline:none;border-color:#2563eb!important}
     select option{background:#fff;color:#1e293b}
     input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
@@ -20,8 +20,8 @@
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
     @keyframes spin{to{transform:rotate(360deg)}}
     .layout{display:flex;height:calc(100vh - 52px);overflow:hidden}
-    .lpanel{width:276px;min-width:276px;background:#fff;border-right:1px solid #e2e8f0;padding:14px;overflow-y:auto;flex-shrink:0}
-    .rpanel{flex:1;overflow-y:auto;padding:14px}
+    .lpanel{width:276px;min-width:276px;background:#fff;border-right:1px solid #e2e8f0;padding:14px 14px 60px;overflow-y:auto;flex-shrink:0}
+    .rpanel{flex:1;overflow-y:auto;padding:14px 14px 60px}
     .qmoney{display:flex;gap:14px;flex-shrink:0;margin-right:4px}
     .qmobile{display:none;gap:8px;margin-top:5px;flex-wrap:wrap}
     @media(max-width:680px){
@@ -73,6 +73,11 @@ function parseMoney(s){
 }
 function fmt(v){ return parseMoney(v).toLocaleString("es-AR",{minimumFractionDigits:0,maximumFractionDigits:0}); }
 function todayStr(){ return new Date().toISOString().split("T")[0]; }
+function fmtFecha(ds){
+  if(!ds||ds.length<10) return ds||"";
+  var parts=ds.substring(0,10).split("-");
+  return parts[2]+"/"+parts[1]+"/"+parts[0];
+}
 function addDays(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
 function addMonths(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().split("T")[0]; }
 function cuotaDate(base,i){ var first=addDays(base,30); return i===0?first:addMonths(first,i); }
@@ -244,11 +249,10 @@ function TrabajoCard(props){
   var st=STATUS[t.estado]||STATUS.pendiente;
   var monto=parseMoney(t.monto);
   var anticipo=parseMoney(t.anticipo);
-  var saldo=monto-anticipo;
-  var cpag=(t.cuotas||[]).filter(function(c){return c.pagada;}).length;
+  var cuotasCobradas=(t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
+  var cobrado=(t.anticipoPagado?anticipo:0)+cuotasCobradas;
+  var pendiente=monto-anticipo-cuotasCobradas;  var cpag=(t.cuotas||[]).filter(function(c){return c.pagada;}).length;
   var ctot=(t.cuotas||[]).length;
-  var cobrado=(t.anticipoPagado?anticipo:0)+(t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
-  var pendiente=monto-cobrado;
 
   return h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.05)",opacity:saving?.65:1,transition:"opacity .2s"}},
 
@@ -264,7 +268,7 @@ function TrabajoCard(props){
             h("span",{style:{padding:"1px 7px",borderRadius:20,background:st.bg,color:st.text,fontSize:10,fontWeight:700,border:"1px solid "+st.color+"44",whiteSpace:"nowrap"}},st.label),
             t.facturado&&h("span",{style:{padding:"1px 7px",borderRadius:20,background:"#f0fdf4",color:"#166534",fontSize:10,fontWeight:700,border:"1px solid #bbf7d0",whiteSpace:"nowrap"}},"Fac #"+t.nroFactura)
           ),
-          h("p",{style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},(t.fecha||"")+(t.descripcion?" - "+t.descripcion.slice(0,48)+(t.descripcion.length>48?"...":""):"")),
+          h("p",{style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},fmtFecha(t.fecha)+(t.descripcion?" \u00b7 "+t.descripcion.slice(0,48)+(t.descripcion.length>48?"...":""):"")),
           h("div",{className:"qmobile"},
             h("span",{style:{fontSize:12,color:T.text,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(monto)),
             h("span",{style:{fontSize:12,color:pendiente>0?"#dc2626":"#16a34a",fontWeight:700,fontVariantNumeric:"tabular-nums"}},"Pend: $ "+fmt(pendiente))
@@ -282,7 +286,7 @@ function TrabajoCard(props){
 
     open&&h("div",{style:{borderTop:"1px solid "+T.border,padding:"13px 15px 15px",animation:"slideIn .2s ease-out"}},
       h("div",{className:"fgrid",style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7,marginBottom:12}},
-        [["Total",fmt(monto),T.text],["Anticipo",fmt(anticipo)+(t.anticipoPagado?" v":""),"#d97706"],["Saldo",fmt(saldo),T.accent],["Cobrado",fmt(cobrado),"#16a34a"],["Pendiente",fmt(pendiente),pendiente>0?"#dc2626":"#16a34a"]].map(function(item){
+        [["Presupuesto",fmt(monto),T.text],["Anticipo",fmt(anticipo)+(t.anticipoPagado?" v":""),"#d97706"],["Cuotas cobradas",fmt(cuotasCobradas),"#16a34a"],["Total cobrado",fmt(cobrado),"#059669"],["Pendiente",fmt(pendiente),pendiente>0?"#dc2626":"#16a34a"]].map(function(item){
           return h("div",{key:item[0],style:{background:T.surfaceAlt,borderRadius:8,padding:"7px 9px",border:"1px solid "+T.border}},
             h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:700,letterSpacing:".05em"}},item[0].toUpperCase()),
             h("p",{style:{margin:"2px 0 0",color:item[2],fontSize:12,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+item[1])
@@ -303,7 +307,7 @@ function TrabajoCard(props){
         h("p",{style:{margin:"0 0 7px",color:T.textMid,fontSize:10,fontWeight:700,letterSpacing:".06em"}},"CUOTAS"),
         (t.cuotas||[]).map(function(c,i){
           return h("div",{key:c.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:i<ctot-1?"1px dashed "+T.border:"none",flexWrap:"wrap",gap:5}},
-            h("span",{style:{color:T.textMid,fontSize:12}},"Cuota "+(i+1)+" - "+(c.indefinida?"Indefinida":c.fecha)+(c.nroFactura?" - Fac:"+c.nroFactura:"")),
+            h("span",{style:{color:T.textMid,fontSize:12}},"Cuota "+(i+1)+" - "+(c.indefinida?"Indefinida":fmtFecha(c.fecha))+(c.nroFactura?" - Fac:"+c.nroFactura:"")),
             h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
               h("span",{style:{color:T.text,fontWeight:600,fontSize:12,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(c.monto)),
               h("span",{style:{padding:"1px 7px",borderRadius:10,fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309"}},c.pagada?"PAGADA":"PEND")
@@ -457,13 +461,22 @@ function App(){
   }
 
   var trabajosFiltrados=useMemo(function(){
-    var list=trabajos.slice().sort(function(a,b){return (a.fecha||"9999").localeCompare(b.fecha||"9999");});
+    var list=trabajos.slice().sort(function(a,b){return (b.fecha||"0000").localeCompare(a.fecha||"0000");});
     if(busqueda.trim()){
       var q=busqueda.trim().toLowerCase();
       list=list.filter(function(t){return (t.obra||"").toLowerCase().indexOf(q)!==-1||(t.descripcion||"").toLowerCase().indexOf(q)!==-1;});
     }
     return list;
   },[trabajos,busqueda]);
+
+  var totalPendiente=useMemo(function(){
+    return trabajos.reduce(function(sum,t){
+      var m=parseMoney(t.monto);
+      var a=parseMoney(t.anticipo);
+      var cc=(t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
+      return sum+(m-a-cc);
+    },0);
+  },[trabajos]);
 
   var alertas=useMemo(function(){
     return trabajos.flatMap(function(t){
@@ -479,7 +492,6 @@ function App(){
     }).sort(function(a,b){return a.diff-b.diff;});
   },[trabajos]);
 
-  var iS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
   var lS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:5};
 
   if(!loggedIn) return h(Login,{onLogin:function(){setLoggedIn(true);}});
@@ -579,7 +591,23 @@ function App(){
       trabajo:cuotasModal,
       onSave:function(cuotas,ant,factAnt,antPag){handleSaveCuotas(cuotasModal.id,cuotas,ant,factAnt,antPag);},
       onClose:function(){setCuotasModal(null);}
-    })
+    }),
+
+    // ── Footer: contador total pendiente ──
+    loggedIn&&h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,boxShadow:"0 -4px 16px rgba(0,0,0,.18)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        h("div",{style:{width:10,height:10,borderRadius:"50%",background:totalPendiente>0?"#f59e0b":"#4ade80",boxShadow:"0 0 8px "+(totalPendiente>0?"#f59e0b":"#4ade80"),animation:"pulse 2s infinite"}}),
+        h("span",{style:{color:"#94a3b8",fontSize:12,fontWeight:600,letterSpacing:".06em"}},
+          trabajos.length+" trabajo"+(trabajos.length!==1?"s":"")+" registrado"+(trabajos.length!==1?"s":"")
+        )
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:12}},
+        h("span",{style:{color:"#64748b",fontSize:12}},"Total pendiente de cobro:"),
+        h("span",{style:{color:totalPendiente>0?"#fbbf24":"#4ade80",fontSize:18,fontWeight:700,fontVariantNumeric:"tabular-nums",letterSpacing:"-.02em"}},
+          "$ "+fmt(totalPendiente)
+        )
+      )
+    )
   );
 }
 
