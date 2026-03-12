@@ -334,7 +334,8 @@ function TrabajoCard(props) {
           h("div", {style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}},
             h("span", {style:{fontWeight:700,color:T.text,fontSize:14,fontFamily:"'DM Serif Display',serif"}}, t.obra||""),
             h("span", {style:{padding:"1px 7px",borderRadius:20,background:st.bg,color:st.text,fontSize:10,fontWeight:700,border:"1px solid "+st.color+"44",whiteSpace:"nowrap"}}, st.label),
-            t.facturado && h("span", {style:{padding:"1px 7px",borderRadius:20,background:"#f0fdf4",color:"#166534",fontSize:10,fontWeight:700,border:"1px solid #bbf7d0",whiteSpace:"nowrap"}}, "Fac #"+t.nroFactura)
+            t.facturado && h("span", {style:{padding:"1px 7px",borderRadius:20,background:"#f0fdf4",color:"#166534",fontSize:10,fontWeight:700,border:"1px solid #bbf7d0",whiteSpace:"nowrap"}}, "Fac #"+t.nroFactura),
+            (pendiente <= 0 && t.estado==="finalizado") && h("span", {style:{padding:"1px 7px",borderRadius:20,background:"#f1f5f9",color:"#64748b",fontSize:10,fontWeight:700,border:"1px solid #cbd5e1",whiteSpace:"nowrap"}}, "Archivado")
           ),
           h("p", {style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},
             fmtFecha(t.fecha) + (t.descripcion ? " - " + t.descripcion.slice(0,50) + (t.descripcion.length>50?"...":"") : "")
@@ -434,7 +435,19 @@ function Login(props) {
   return h("div", {style:{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:14}},
     h("div", {style:{animation:anim,width:"min(390px,100%)",background:T.surface,border:"1px solid "+T.border,borderRadius:20,padding:"34px 30px",boxShadow:"0 8px 40px rgba(0,0,0,.10)"}},
       h("div", {style:{textAlign:"center",marginBottom:30}},
-        h("div", {style:{width:52,height:52,background:"linear-gradient(135deg,#2563eb,#4f46e5)",borderRadius:14,margin:"0 auto 13px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 6px 20px rgba(37,99,235,.3)"}}, ":building_construction:"),
+        h("img", {
+          id:"login-logo",
+          src:"https://lh3.googleusercontent.com/d/1j4NDB2m07aY6SY7DPv2LBzXwliAPXhsF",
+          alt:"GestionObra",
+          style:{width:100,height:100,objectFit:"contain",margin:"0 auto 10px",display:"block",borderRadius:12},
+          onError:function(){
+            var el=document.getElementById("login-logo");
+            if(el){el.style.display="none";}
+            var fb=document.getElementById("login-logo-fb");
+            if(fb){fb.style.display="flex";}
+          }
+        }),
+        h("div",{id:"login-logo-fb",style:{display:"none",width:90,height:90,background:"linear-gradient(135deg,#2563eb,#4f46e5)",borderRadius:18,margin:"0 auto 10px",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:700,color:"white",boxShadow:"0 6px 20px rgba(37,99,235,.3)",fontFamily:"inherit"}},"ID"),
         h("h1", {style:{color:T.text,fontSize:23,fontWeight:400,margin:0,fontFamily:"'DM Serif Display',serif"}}, "GestionObra"),
         h("p",  {style:{color:T.textMid,fontSize:13,margin:"5px 0 0"}}, "Sistema de gestion de trabajos y pagos")
       ),
@@ -463,6 +476,7 @@ function App() {
   var cmState = useState(null);   var cuotasModal = cmState[0]; var setCuotasModal = cmState[1];
   var aeState = useState("");     var apiError  = aeState[0]; var setApiError  = aeState[1];
   var bqState = useState("");     var busqueda  = bqState[0]; var setBusqueda  = bqState[1];
+  var maState = useState(false);  var mostrarArchivados = maState[0]; var setMostrarArchivados = maState[1];
 
   var emptyForm = {fecha:todayStr(),obra:"",descripcion:"",estado:"pendiente",monto:"",anticipo:"",cantCuotas:"1"};
   var fmState = useState(emptyForm); var form = fmState[0]; var setForm = fmState[1];
@@ -543,14 +557,26 @@ function App() {
     updateRemote(updated.filter(function(t){ return t.id===id; })[0]);
   }
 
+  /* Un trabajo se considera ARCHIVADO cuando esta finalizado Y cobrado en su totalidad */
+  function esArchivado(t) {
+    if (t.estado !== "finalizado") return false;
+    var monto  = parseMoney(t.monto);
+    var antici = parseMoney(t.anticipo);
+    var cc     = (t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
+    var pendiente = monto - antici - cc;
+    return pendiente <= 0;
+  }
+
   var trabajosFiltrados = useMemo(function() {
     var list = trabajos.slice().sort(function(a,b){ return (b.fecha||"0000").localeCompare(a.fecha||"0000"); });
+    /* separar archivados de activos */
+    list = list.filter(function(t){ return mostrarArchivados ? esArchivado(t) : !esArchivado(t); });
     if (busqueda.trim()) {
       var q = busqueda.trim().toLowerCase();
       list = list.filter(function(t){ return (t.obra||"").toLowerCase().indexOf(q) !== -1 || (t.descripcion||"").toLowerCase().indexOf(q) !== -1; });
     }
     return list;
-  }, [trabajos, busqueda]);
+  }, [trabajos, busqueda, mostrarArchivados]);
 
   var totalPendiente = useMemo(function() {
     return trabajos.reduce(function(sum, t) {
@@ -559,6 +585,10 @@ function App() {
       var cc = (t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
       return sum + (m - a - cc);
     }, 0);
+  }, [trabajos]);
+
+  var archivadosCount = useMemo(function() {
+    return trabajos.filter(function(t){ return esArchivado(t); }).length;
   }, [trabajos]);
 
   var alertas = useMemo(function() {
@@ -586,7 +616,19 @@ function App() {
     /* header */
     h("div", {style:{background:T.surface,borderBottom:"1px solid "+T.border,padding:"0 13px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,.06)"}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-        h("span", {style:{fontSize:18}}, ":building_construction:"),
+        h("img", {
+          id:"header-logo",
+          src:"https://lh3.googleusercontent.com/d/1j4NDB2m07aY6SY7DPv2LBzXwliAPXhsF",
+          alt:"Logo",
+          style:{width:32,height:32,objectFit:"contain",borderRadius:6},
+          onError:function(){
+            var el=document.getElementById("header-logo");
+            if(el){el.style.display="none";}
+            var fb=document.getElementById("header-logo-fb");
+            if(fb){fb.style.display="inline-flex";}
+          }
+        }),
+        h("span",{id:"header-logo-fb",style:{display:"none",width:32,height:32,background:"linear-gradient(135deg,#2563eb,#4f46e5)",borderRadius:8,alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"white"}},"ID"),
         h("span", {style:{fontFamily:"'DM Serif Display',serif",fontSize:17,color:T.text}}, "GestionObra")
       ),
       h("div", {style:{display:"flex",gap:3}},
@@ -661,14 +703,34 @@ function App() {
 
           /* right panel */
           h("div", {className:"rpanel"},
-            /* search bar */
+            /* search bar + archivo toggle */
             h("div", {style:{position:"sticky",top:0,zIndex:10,background:T.bg,paddingBottom:9,marginBottom:2}},
-              h("div", {style:{position:"relative"}},
-                h("input", {type:"text", value:busqueda, onChange:function(e){setBusqueda(e.target.value);}, placeholder:"Buscar obra o descripcion...", style:{width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 35px 9px 13px",color:T.text,fontSize:13,outline:"none",boxShadow:"0 1px 4px rgba(0,0,0,.05)",fontFamily:"inherit"}}),
-                busqueda && h("button", {onClick:function(){setBusqueda("");}, style:{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:T.textSoft,fontSize:15,lineHeight:1}}, "X")
+              h("div", {style:{display:"flex",gap:8,alignItems:"center",marginBottom:6}},
+                h("div", {style:{position:"relative",flex:1}},
+                  h("input", {type:"text", value:busqueda, onChange:function(e){setBusqueda(e.target.value);}, placeholder:"Buscar obra o descripcion...", style:{width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 35px 9px 13px",color:T.text,fontSize:13,outline:"none",boxShadow:"0 1px 4px rgba(0,0,0,.05)",fontFamily:"inherit"}}),
+                  busqueda && h("button", {onClick:function(){setBusqueda("");}, style:{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:T.textSoft,fontSize:15,lineHeight:1}}, "X")
+                ),
+                h("button", {
+                  onClick:function(){ setMostrarArchivados(function(v){return !v;}); setBusqueda(""); },
+                  title: mostrarArchivados ? "Ver obras activas" : "Ver obras archivadas",
+                  style:{
+                    flexShrink:0, padding:"8px 12px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"inherit",
+                    background: mostrarArchivados ? "#1e293b" : T.surfaceAlt,
+                    border: "1px solid " + (mostrarArchivados ? "#334155" : T.border),
+                    color: mostrarArchivados ? "#e2e8f0" : T.textMid,
+                    display:"flex", alignItems:"center", gap:6,
+                    boxShadow: mostrarArchivados ? "0 2px 8px rgba(0,0,0,.2)" : "none",
+                    transition:"all .2s"
+                  }
+                },
+                  h("span", {style:{fontSize:14}}, mostrarArchivados ? "\uD83D\uDCC2" : "\uD83D\uDDC4"),
+                  mostrarArchivados ? "Activas" : "Archivadas" + (archivadosCount>0 ? " ("+archivadosCount+")" : "")
+                )
               ),
-              trabajosFiltrados.length>0 && h("p", {style:{color:T.textSoft,fontSize:11,margin:"5px 0 0 2px"}},
-                trabajosFiltrados.length + " obra" + (trabajosFiltrados.length!==1?"s":"") + (busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"") + " - ordenadas por fecha (mas reciente primero)"
+              h("p", {style:{color: mostrarArchivados ? "#64748b" : T.textSoft, fontSize:11, margin:"0 0 0 2px"}},
+                mostrarArchivados
+                  ? (trabajosFiltrados.length + " obra" + (trabajosFiltrados.length!==1?"s":"") + " archivada" + (trabajosFiltrados.length!==1?"s":"") + " (finalizadas y cobradas)")
+                  : (trabajosFiltrados.length + " obra" + (trabajosFiltrados.length!==1?"s":"") + " activa" + (trabajosFiltrados.length!==1?"s":"") + (busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"") + " - ordenadas por fecha")
               )
             ),
 
@@ -676,7 +738,14 @@ function App() {
               ? h("div", {style:{textAlign:"center",padding:46,color:T.textSoft,display:"flex",flexDirection:"column",alignItems:"center",gap:13}}, h(Spinner,{size:28}), h("p",null,"Cargando..."))
               : trabajosFiltrados.length===0
                 ? h("div", {style:{textAlign:"center",padding:46,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},
-                    h("p", {style:{margin:0,fontSize:14,color:T.textMid}}, busqueda ? "Sin resultados para \""+busqueda+"\"" : "Sin trabajos registrados"),
+                    h("div", {style:{fontSize:32,marginBottom:10}}, mostrarArchivados ? "\uD83D\uDDC4" : "\uD83D\uDCCB"),
+                    h("p", {style:{margin:0,fontSize:14,color:T.textMid}},
+                      busqueda
+                        ? "Sin resultados para \""+busqueda+"\""
+                        : mostrarArchivados
+                          ? "No hay obras archivadas aun"
+                          : "Sin trabajos registrados"
+                    ),
                     busqueda && h("button", {onClick:function(){setBusqueda("");}, style:{marginTop:9,padding:"6px 13px",background:T.accentBg,border:"1px solid #bfdbfe",borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}, "Limpiar busqueda")
                   )
                 : trabajosFiltrados.map(function(t) {
