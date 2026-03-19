@@ -74,15 +74,35 @@ function parseMoney(s){
 }
 function fmt(v){ return parseMoney(v).toLocaleString("es-AR",{minimumFractionDigits:0,maximumFractionDigits:0}); }
 function todayStr(){ return new Date().toISOString().split("T")[0]; }
-function fmtFecha(ds){
+/* normaliza cualquier valor de fecha a string "YYYY-MM-DD" */
+function normFecha(ds){
   if(!ds) return "";
-  /* si es objeto Date (puede venir de Sheets) convertir a string ISO */
-  var s = (typeof ds === "object" && ds.getFullYear) ? ds.toISOString() : String(ds);
-  /* tomar solo los primeros 10 caracteres YYYY-MM-DD */
-  s = s.substring(0,10);
-  var p = s.split("-");
-  if(p.length !== 3) return s;
-  /* DD/MM/AA (año 2 digitos) */
+  if(typeof ds === "object" && ds.getFullYear){
+    /* objeto Date de JS - usar UTC para evitar desfase de timezone */
+    var yy=ds.getUTCFullYear();
+    var mm=String(ds.getUTCMonth()+1).padStart?String(ds.getUTCMonth()+1).padStart(2,"0"):(ds.getUTCMonth()<9?"0":"")+(ds.getUTCMonth()+1);
+    var dd=ds.getUTCDate()<10?"0"+ds.getUTCDate():""+ds.getUTCDate();
+    return yy+"-"+mm+"-"+dd;
+  }
+  var s=String(ds).trim();
+  /* ISO con hora: "2024-01-15T03:00:00.000Z" -> tomar solo los 10 primeros chars */
+  if(s.length>10&&s.charAt(10)==="T") return s.substring(0,10);
+  /* si viene como "DD/MM/YYYY" o "DD/MM/YY" convertir a YYYY-MM-DD */
+  if(s.indexOf("/")!==-1){
+    var p2=s.split("/");
+    if(p2.length===3){
+      var yr=p2[2].length===2?"20"+p2[2]:p2[2];
+      return yr+"-"+(p2[1].length<2?"0"+p2[1]:p2[1])+"-"+(p2[0].length<2?"0"+p2[0]:p2[0]);
+    }
+  }
+  return s.substring(0,10);
+}
+/* formatea para mostrar: DD/MM/AA */
+function fmtFecha(ds){
+  var s=normFecha(ds);
+  if(!s||s.length<10) return s||"";
+  var p=s.split("-");
+  if(p.length!==3) return s;
   return p[2]+"/"+p[1]+"/"+p[0].substring(2);
 }
 function addDays(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
@@ -643,7 +663,13 @@ function App(){
     setLoading(true);setApiError("");
     api.get("getAll").then(function(res){
       if(res.error){setApiError("Error: "+res.error);setTrabajos([]);}
-      else setTrabajos(res.trabajos||[]);
+      else {
+        /* normalizar fechas que pueden llegar como strings raros desde Sheets */
+        var ts=(res.trabajos||[]).map(function(t){
+          return Object.assign({},t,{fecha:normFecha(t.fecha)});
+        });
+        setTrabajos(ts);
+      }
       setLoading(false);
     }).catch(function(){setApiError("No se pudo conectar con la API.");setLoading(false);});
   },[]);
@@ -708,7 +734,10 @@ function App(){
   }
 
   var trabajosFiltrados=useMemo(function(){
-    var list=trabajos.slice().sort(function(a,b){return(b.fecha||"0000").localeCompare(a.fecha||"0000");});
+    var list=trabajos.slice().sort(function(a,b){
+    var fa=normFecha(a.fecha||"");var fb=normFecha(b.fecha||"");
+    if(fb>fa) return 1; if(fb<fa) return -1; return 0;
+  });
     list=list.filter(function(t){return mostrarArch?esArchivado(t):!esArchivado(t);});
     if(busqueda.trim()){
       var q=busqueda.trim().toLowerCase();
