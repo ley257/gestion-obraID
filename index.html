@@ -111,6 +111,12 @@ function cuotaDate(base,i){ var first=addDays(base,30); return i===0?first:addMo
 function merge(a,b){ return Object.assign({},a,b); }
 function setKey(obj,key,val){ var r=Object.assign({},obj); r[key]=val; return r; }
 
+/* fmtMoney: formatea con el simbolo correcto segun moneda */
+function fmtMoney(v, moneda){
+  var sym = (moneda==="USD") ? "U$S " : "$ ";
+  return sym + fmt(v);
+}
+
 /* calcTotals: pendiente = anticipo (si no cobrado) + cuotas no cobradas */
 function calcTotals(t){
   var monto   = parseMoney(t.monto);
@@ -541,9 +547,10 @@ function CuotasModal(props){
 
       /* monto resumen */
       h("div",{style:{background:T.accentBg,borderRadius:10,padding:"10px 14px",marginBottom:14,border:"1px solid #bfdbfe",display:"flex",gap:16,flexWrap:"wrap"}},
-        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"PRESUPUESTO TOTAL"),h("p",{style:{margin:"2px 0 0",color:T.text,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(montoBase))),
-        anticipo>0&&h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"ANTICIPO"),h("p",{style:{margin:"2px 0 0",color:"#d97706",fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(anticipo))),
-        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"SALDO EN CUOTAS"),h("p",{style:{margin:"2px 0 0",color:T.accent,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(saldoRef)))
+        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"PRESUPUESTO TOTAL"),h("p",{style:{margin:"2px 0 0",color:T.text,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(montoBase,trabajo.moneda))),
+        anticipo>0&&h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"ANTICIPO"),h("p",{style:{margin:"2px 0 0",color:"#d97706",fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(anticipo,trabajo.moneda))),
+        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"SALDO EN CUOTAS"),h("p",{style:{margin:"2px 0 0",color:T.accent,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(saldoRef,trabajo.moneda))),
+        trabajo.moneda==="USD"&&h("div",null,h("span",{style:{padding:"2px 8px",borderRadius:6,background:"#fefce8",color:"#854d0e",fontSize:11,fontWeight:700,border:"1px solid #fde047"}},"Dolares U$S"))
       ),
 
       /* anticipo block - si monto>0 */
@@ -603,7 +610,10 @@ function CuotasModal(props){
             h("label",{style:{display:"flex",alignItems:"center",gap:2,cursor:"pointer",fontSize:10,color:T.textSoft,whiteSpace:"nowrap"}},
               h("input",{type:"checkbox",checked:!!c.indefinida,onChange:function(e){updCuota(c.id,"indefinida",e.target.checked);},style:{cursor:"pointer"}}),"Indef")
           ),
-          h(MoneyInput,{value:c.monto,onChange:function(v){updCuota(c.id,"monto",v===""?0:v);},style:ib}),
+          h("div",{style:{position:"relative"}},
+            trabajo.moneda==="USD"&&h("span",{style:{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",color:"#854d0e",fontSize:10,fontWeight:700,pointerEvents:"none",zIndex:1}},"U$S"),
+            h(MoneyInput,{value:c.monto,onChange:function(v){updCuota(c.id,"monto",v===""?0:v);},style:merge(ib,{paddingLeft:trabajo.moneda==="USD"?28:8})})
+          ),
           h("input",{type:"text",value:c.nroFactura||"",onChange:function(e){updCuota(c.id,"nroFactura",e.target.value);},placeholder:"N factura",style:ib}),
           h("button",{onClick:function(){updCuota(c.id,"pagada",!c.pagada);},style:{padding:"5px 2px",borderRadius:8,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309",whiteSpace:"nowrap"}},c.pagada?"PAG":"PEND"),
           h("button",{onClick:function(){remCuota(c.id);},style:{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:17,padding:0,lineHeight:1}},"x")
@@ -617,7 +627,7 @@ function CuotasModal(props){
       /* footer modal */
       h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14,paddingTop:14,borderTop:"1px solid "+T.border,flexWrap:"wrap",gap:8}},
         h("span",{style:{fontSize:13,fontWeight:600,color:Math.abs(diff)<2?"#16a34a":diff>0?"#dc2626":"#d97706"}},
-          "Cuotas: $ "+fmt(total)+(Math.abs(diff)<2?" OK":diff>0?" (excede $"+fmt(diff)+")": " (faltan $"+fmt(-diff)+")")
+          "Cuotas: "+fmtMoney(total,trabajo.moneda)+(Math.abs(diff)<2?" OK":diff>0?" (excede "+fmtMoney(diff,trabajo.moneda)+")": " (faltan "+fmtMoney(-diff,trabajo.moneda)+")")
         ),
         h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
           h("button",{
@@ -662,20 +672,21 @@ function TrabajoCard(props){
         h("div",{style:{flex:1,minWidth:0}},
           h("div",{style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}},
             h("span",{style:{fontWeight:700,color:archivado?T.textMid:T.text,fontSize:14,fontFamily:"'DM Serif Display',serif"}},t.obra||""),
-            h("span",{style:{padding:"1px 7px",borderRadius:20,background:archivado?"#f1f5f9":st.bg,color:archivado?T.textSoft:st.text,fontSize:10,fontWeight:700,border:"1px solid "+(archivado?"#cbd5e1":st.color+"44"),whiteSpace:"nowrap"}},archivado?"Archivado":st.label)
+            h("span",{style:{padding:"1px 7px",borderRadius:20,background:archivado?"#f1f5f9":st.bg,color:archivado?T.textSoft:st.text,fontSize:10,fontWeight:700,border:"1px solid "+(archivado?"#cbd5e1":st.color+"44"),whiteSpace:"nowrap"}},archivado?"Archivado":st.label),
+            t.moneda==="USD"&&h("span",{style:{padding:"1px 7px",borderRadius:20,background:"#fefce8",color:"#854d0e",fontSize:10,fontWeight:700,border:"1px solid #fde047",whiteSpace:"nowrap"}},"U$S")
           ),
           h("p",{style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},
             fmtFecha(t.fecha)+(t.descripcion?" - "+t.descripcion.slice(0,50)+(t.descripcion.length>50?"...":""):"")
           ),
           h("div",{className:"qmobile"},
-            h("span",{style:{fontSize:12,color:T.text,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(monto)),
-            h("span",{style:{fontSize:12,color:pendiente>0?"#dc2626":"#16a34a",fontWeight:700,fontVariantNumeric:"tabular-nums"}},"Pend: $ "+fmt(pendiente))
+            h("span",{style:{fontSize:12,color:T.text,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(monto,t.moneda)),
+            h("span",{style:{fontSize:12,color:pendiente>0?"#dc2626":"#16a34a",fontWeight:700,fontVariantNumeric:"tabular-nums"}},"Pend: "+fmtMoney(pendiente,t.moneda))
           )
         ),
         h("div",{className:"qmoney"},
-          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"TOTAL"),h("p",{style:{margin:0,color:T.text,fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(monto))),
-          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"COBRADO"),h("p",{style:{margin:0,color:"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(cobrado))),
-          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"PENDIENTE"),h("p",{style:{margin:0,color:pendiente>0?"#dc2626":"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(pendiente))),
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"TOTAL"),h("p",{style:{margin:0,color:T.text,fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(monto,t.moneda))),
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"COBRADO"),h("p",{style:{margin:0,color:"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(cobrado,t.moneda))),
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"PENDIENTE"),h("p",{style:{margin:0,color:pendiente>0?"#dc2626":"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(pendiente,t.moneda))),
           ctot>0&&h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"CUOTAS"),h("p",{style:{margin:0,color:T.textMid,fontSize:13,fontWeight:700}},cpag+"/"+ctot))
         ),
         h("span",{style:{color:T.textSoft,fontSize:11,transition:"transform .25s",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)",flexShrink:0,marginLeft:4}},"v")
@@ -685,9 +696,10 @@ function TrabajoCard(props){
     open&&h("div",{style:{borderTop:"1px solid "+T.border,padding:"13px 14px 15px",animation:"slideIn .2s ease-out"}},
       h("div",{className:"fgrid",style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7,marginBottom:12}},
         [["Total",fmt(monto),T.text],["Anticipo",fmt(antici)+(t.anticipoPagado?" ok":"")+(t.anticipoPagado?"":" pend"),"#d97706"],["Saldo cuotas",fmt(tots.saldoCuotas),T.accent],["Cobrado",fmt(cobrado),"#16a34a"],["Pendiente",fmt(pendiente),pendiente>0?"#dc2626":"#16a34a"]].map(function(item){
+          var sym=(t.moneda==="USD")?"U$S ":"$ ";
           return h("div",{key:item[0],style:{background:T.surfaceAlt,borderRadius:8,padding:"7px 9px",border:"1px solid "+T.border}},
             h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:700,letterSpacing:".05em"}},item[0].toUpperCase()),
-            h("p",{style:{margin:"2px 0 0",color:item[2],fontSize:12,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+item[1])
+            h("p",{style:{margin:"2px 0 0",color:item[2],fontSize:12,fontWeight:700,fontVariantNumeric:"tabular-nums"}},sym+item[1])
           );
         }),
         ctot>0&&h("div",{style:{background:T.surfaceAlt,borderRadius:8,padding:"7px 9px",border:"1px solid "+T.border}},
@@ -734,6 +746,9 @@ function BalanceTab(props){
   var dsS=useState(defFin);var dateStart=dsS[0];var setDateStart=dsS[1];
   var deS=useState(todayStr());var dateEnd=deS[0];var setDateEnd=deS[1];
   var selS=useState(null);var selObra=selS[0];var setSelObra=selS[1];
+  var monS=useState("ARS");var monFilter=monS[0];var setMonFilter=monS[1];
+  var hayUSDbal=useMemo(function(){return trabajos.some(function(t){return t.moneda==="USD";});},[trabajos]);
+  var monSym = monFilter==="USD" ? "U$S " : "$ ";
 
   /* Recopilar todos los cobros dentro del período.
      Regla: se usa la fecha del trabajo como fecha de cobro del anticipo/pago unico.
@@ -742,6 +757,7 @@ function BalanceTab(props){
   var cobros=useMemo(function(){
     var arr=[];
     trabajos.forEach(function(t){
+      if((t.moneda||"ARS")!==monFilter) return; /* filtrar por moneda */
       var arch=esArchivado(t);
       var fechaObra=t.fecha||"";
 
@@ -773,7 +789,7 @@ function BalanceTab(props){
     });
     arr.sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
     return arr;
-  },[trabajos,dateStart,dateEnd]);
+  },[trabajos,dateStart,dateEnd,monFilter]);
 
   var totalPeriodo=cobros.reduce(function(s,c){return s+c.monto;},0);
 
@@ -839,10 +855,19 @@ function BalanceTab(props){
       )
     ),
 
-    /* total período */
+    /* selector moneda + total período */
+    hayUSDbal&&h("div",{style:{display:"flex",gap:8,marginBottom:14}},
+      [["ARS","$ Pesos"],["USD","U$S Dolares"]].map(function(opt){
+        var sel=monFilter===opt[0];
+        return h("button",{key:opt[0],onClick:function(){setMonFilter(opt[0]);setSelObra(null);},
+          style:{padding:"7px 16px",borderRadius:8,border:"2px solid "+(sel?"#2563eb":T.border),
+            background:sel?T.accentBg:T.surface,color:sel?T.accent:T.textMid,
+            fontWeight:sel?700:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}},opt[1]);
+      })
+    ),
     h("div",{style:{background:"linear-gradient(135deg,#1e40af,#3730a3)",borderRadius:16,padding:"20px 24px",marginBottom:18,color:"white",textAlign:"center",boxShadow:"0 6px 24px rgba(37,99,235,.3)"}},
       h("p",{style:{margin:0,fontSize:12,fontWeight:700,letterSpacing:".1em",opacity:.8}},"TOTAL COBRADO EN EL PERIODO"),
-      h("p",{style:{margin:"8px 0 0",fontSize:32,fontWeight:700,fontVariantNumeric:"tabular-nums",letterSpacing:"-.02em"}},"$ "+fmt(totalPeriodo)),
+      h("p",{style:{margin:"8px 0 0",fontSize:32,fontWeight:700,fontVariantNumeric:"tabular-nums",letterSpacing:"-.02em"}},monSym+fmt(totalPeriodo)),
       h("p",{style:{margin:"4px 0 0",fontSize:12,opacity:.6}},fmtFecha(dateStart)+" al "+fmtFecha(dateEnd)+" - "+cobros.length+" cobro"+(cobros.length!==1?"s":"")+(cobrosArchivados>0?" (incluye "+cobrosArchivados+" de obras archivadas)":""))
     ),
 
@@ -914,7 +939,7 @@ function BalanceTab(props){
                   ),
                   h("p",{style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},fmtFecha(c.fecha)+" - "+c.tipo+(c.factura?" - Fac: "+c.factura:""))
                 ),
-                h("p",{style:{margin:0,color:"#16a34a",fontWeight:700,fontSize:14,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(c.monto))
+                h("p",{style:{margin:0,color:"#16a34a",fontWeight:700,fontSize:14,fontVariantNumeric:"tabular-nums"}},monSym+fmt(c.monto))
               );
             })
           )
@@ -970,7 +995,7 @@ function App(){
   var bqS=useState("");var busqueda=bqS[0];var setBusqueda=bqS[1];
   var maS=useState(false);var mostrarArch=maS[0];var setMostrarArch=maS[1];
 
-  var emptyForm={fecha:todayStr(),obra:"",descripcion:"",estado:"pendiente",monto:"",anticipo:"",cantCuotas:"1",anticipoPagado:true};
+  var emptyForm={fecha:todayStr(),obra:"",descripcion:"",estado:"pendiente",monto:"",anticipo:"",cantCuotas:"1",anticipoPagado:true,moneda:"ARS"};
   var fmS=useState(emptyForm);var form=fmS[0];var setForm=fmS[1];
   var sdS=useState(false);var saved=sdS[0];var setSaved=sdS[1];
 
@@ -1008,6 +1033,7 @@ function App(){
       id:String(Date.now()),monto:parseMoney(form.monto),anticipo:parseMoney(form.anticipo),
       cantCuotas:parseInt(form.cantCuotas)||1,facturado:false,nroFactura:"",
       anticipoPagado:!!form.anticipoPagado,facturaAnticipo:"",pagoPagado:false,facturaFull:"",
+      moneda:form.moneda||"ARS",
       cuotas:calcCuotas(form.monto,form.anticipo,form.cantCuotas,form.fecha)
     });
     api.post("save",{data:nuevo}).then(function(res){
@@ -1061,12 +1087,18 @@ function App(){
     return list;
   },[trabajos,busqueda,mostrarArch]);
 
-  /* total pendiente: monto - anticipo - cuotas_cobradas (anticipo cobrado YA resta porque: pendiente = monto-anticipo-cc) */
-  var totalPendiente=useMemo(function(){
-    return trabajos.filter(function(t){return !esArchivado(t);}).reduce(function(sum,t){
+  /* totales pendientes separados por moneda */
+  var totalPendienteARS=useMemo(function(){
+    return trabajos.filter(function(t){return !esArchivado(t)&&(t.moneda||"ARS")==="ARS";}).reduce(function(sum,t){
       return sum+calcTotals(t).pendiente;
     },0);
   },[trabajos]);
+  var totalPendienteUSD=useMemo(function(){
+    return trabajos.filter(function(t){return !esArchivado(t)&&t.moneda==="USD";}).reduce(function(sum,t){
+      return sum+calcTotals(t).pendiente;
+    },0);
+  },[trabajos]);
+  var hayUSD=useMemo(function(){return trabajos.some(function(t){return t.moneda==="USD";});},[trabajos]);
 
   var archivadosCount=useMemo(function(){return trabajos.filter(function(t){return esArchivado(t);}).length;},[trabajos]);
 
@@ -1149,8 +1181,23 @@ function App(){
                   Object.keys(STATUS).map(function(k){return h("option",{key:k,value:k},STATUS[k].label);})
                 )
               ),
-              h("div",{style:{marginBottom:10}},h("label",{style:lS},"MONTO ($)"),h(MoneyInput,{value:form.monto,onChange:function(v){setField("monto",v);},style:iS})),
-              h("div",{style:{marginBottom:parseMoney(form.anticipo)>0?6:10}},h("label",{style:lS},"ANTICIPO ($)"),h(MoneyInput,{value:form.anticipo,onChange:function(v){setField("anticipo",v); if(form.anticipoPagado===undefined)setField("anticipoPagado",true);},style:iS})),
+              h("div",{style:{marginBottom:10}},
+                h("label",{style:lS},"MONEDA"),
+                h("div",{style:{display:"flex",gap:8}},
+                  [["ARS","$ Pesos"],["USD","U$S Dolares"]].map(function(opt){
+                    var sel=((form.moneda||"ARS")===opt[0]);
+                    return h("button",{key:opt[0],onClick:function(){setField("moneda",opt[0]);},
+                      style:{flex:1,padding:"9px 8px",borderRadius:8,border:"2px solid "+(sel?(opt[0]==="USD"?"#1d4ed8":"#2563eb"):T.border),
+                        background:sel?(opt[0]==="USD"?"#eff6ff":"#eff6ff"):T.surfaceAlt,
+                        color:sel?(opt[0]==="USD"?"#1d4ed8":"#2563eb"):T.textMid,
+                        fontWeight:sel?700:500,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},
+                      opt[1]
+                    );
+                  })
+                )
+              ),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},(form.moneda==="USD"?"MONTO (U$S)":"MONTO ($)")),h(MoneyInput,{value:form.monto,onChange:function(v){setField("monto",v);},style:iS})),
+              h("div",{style:{marginBottom:parseMoney(form.anticipo)>0?6:10}},h("label",{style:lS},(form.moneda==="USD"?"ANTICIPO (U$S)":"ANTICIPO ($)")),h(MoneyInput,{value:form.anticipo,onChange:function(v){setField("anticipo",v); if(form.anticipoPagado===undefined)setField("anticipoPagado",true);},style:iS})),
               parseMoney(form.anticipo)>0&&h("button",{
                 onClick:function(){setField("anticipoPagado",!form.anticipoPagado);},
                 style:{
@@ -1168,10 +1215,10 @@ function App(){
               ),
               parseMoney(form.monto)>0&&h("div",{style:{background:T.accentBg,borderRadius:8,padding:"8px 11px",marginBottom:10,fontSize:12,border:"1px solid #bfdbfe"}},
                 h("div",{style:{display:"flex",justifyContent:"space-between",color:T.textMid,marginBottom:2}},
-                  h("span",null,"Saldo"),h("span",{style:{color:T.accent,fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(parseMoney(form.monto)-parseMoney(form.anticipo)))
+                  h("span",null,"Saldo"),h("span",{style:{color:T.accent,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(parseMoney(form.monto)-parseMoney(form.anticipo),form.moneda))
                 ),
                 parseInt(form.cantCuotas)>0&&h("div",{style:{display:"flex",justifyContent:"space-between",color:T.textMid}},
-                  h("span",null,"Por cuota"),h("span",{style:{color:"#059669",fontWeight:700,fontVariantNumeric:"tabular-nums"}},"$ "+fmt(Math.round((parseMoney(form.monto)-parseMoney(form.anticipo))/(parseInt(form.cantCuotas)||1))))
+                  h("span",null,"Por cuota"),h("span",{style:{color:"#059669",fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(Math.round((parseMoney(form.monto)-parseMoney(form.anticipo))/(parseInt(form.cantCuotas)||1)),form.moneda))
                 )
               ),
               h("div",{style:{marginBottom:13}},h("label",{style:lS},"CANT. CUOTAS"),h("input",{type:"number",min:1,max:60,value:form.cantCuotas,onChange:function(e){setField("cantCuotas",e.target.value);},style:iS})),
@@ -1201,51 +1248,4 @@ function App(){
                   )
                 ),
                 h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
-                  mostrarArch
-                    ?(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" archivada"+(trabajosFiltrados.length!==1?"s":""))
-                    :(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" activa"+(trabajosFiltrados.length!==1?"s":"")+(busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"")+" - mas reciente primero")
-                )
-              ),
-              loading
-                ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,display:"flex",flexDirection:"column",alignItems:"center",gap:13}},h(Spinner,{size:28}),h("p",null,"Cargando..."))
-                :trabajosFiltrados.length===0
-                  ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},
-                      h("p",{style:{margin:0,fontSize:14,color:T.textMid}},busqueda?"Sin resultados para \""+busqueda+"\"":mostrarArch?"No hay obras archivadas":"Sin trabajos registrados"),
-                      busqueda&&h("button",{onClick:function(){setBusqueda("");},style:{marginTop:9,padding:"6px 13px",background:T.accentBg,border:"1px solid #bfdbfe",borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Limpiar")
-                    )
-                  :trabajosFiltrados.map(function(t){
-                      return h(TrabajoCard,{key:t.id,t:t,saving:savingId===t.id,onDelete:handleDelete,onStatus:handleStatus,onCuotas:setCuotasModal});
-                    })
-            )
-          ),
-
-    /* cuotas modal */
-    cuotasModal&&h(CuotasModal,{
-      trabajo:cuotasModal,
-      onSave:function(cuotas,ant,factAnt,antPag,pagoPagado,factFull){handleSaveCuotas(cuotasModal.id,cuotas,ant,factAnt,antPag,pagoPagado,factFull);},
-      onClose:function(){setCuotasModal(null);}
-    }),
-
-    /* footer */
-    h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"9px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
-      h("div",{style:{display:"flex",alignItems:"center",gap:9}},
-        h("div",{style:{width:9,height:9,borderRadius:"50%",background:totalPendiente>0?"#f59e0b":"#4ade80",boxShadow:"0 0 7px "+(totalPendiente>0?"#f59e0b":"#4ade80"),animation:"pulse 2s infinite"}}),
-        h("span",{style:{color:"#94a3b8",fontSize:12,fontWeight:600}},
-          trabajos.length+" trabajo"+(trabajos.length!==1?"s":"")+" registrado"+(trabajos.length!==1?"s":"")
-        )
-      ),
-      h("div",{style:{display:"flex",alignItems:"center",gap:10}},
-        h("span",{style:{color:"#64748b",fontSize:12}},"Total pendiente de cobro:"),
-        h("span",{style:{color:totalPendiente>0?"#fbbf24":"#4ade80",fontSize:17,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
-          "$ "+fmt(totalPendiente)
-        )
-      )
-    )
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(h(App,null));
-})();
-</script>
-</body>
-</html>
+       
