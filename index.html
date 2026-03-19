@@ -135,6 +135,297 @@ var api={
   }
 };
 
+/* ─ PDF print helper ─────────────────────────────────── */
+function printHTML(htmlContent, filename){
+  var w = window.open("","_blank","width=900,height=700");
+  if(!w){ alert("Permiti las ventanas emergentes para exportar PDF"); return; }
+  w.document.write(htmlContent);
+  w.document.close();
+  w.focus();
+  setTimeout(function(){
+    w.print();
+    /* no cerramos automaticamente para que el usuario vea el dialogo */
+  }, 600);
+}
+
+function buildEstadoCuentasHTML(trabajo, calcTots){
+  var tots = calcTots(trabajo);
+  var monto     = tots.monto;
+  var anticipo  = tots.anticipo;
+  var cobrado   = tots.cobrado;
+  var pendiente = tots.pendiente;
+  var cuotas    = trabajo.cuotas||[];
+  var ctot      = cuotas.length;
+  var cpag      = cuotas.filter(function(c){return c.pagada;}).length;
+  var hoy       = fmtFecha(todayStr());
+
+  var cuotasRows = cuotas.map(function(c,i){
+    var estado = c.pagada
+      ? '<span style="color:#15803d;font-weight:700">Pagada</span>'
+      : '<span style="color:#b45309;font-weight:700">Pendiente</span>';
+    return '<tr>'
+      +'<td>'+(i+1)+'</td>'
+      +'<td>'+(c.indefinida?"Indefinida":fmtFecha(c.fecha))+'</td>'
+      +'<td style="text-align:right">$ '+fmt(c.monto)+'</td>'
+      +'<td>'+(c.nroFactura||"-")+'</td>'
+      +'<td>'+estado+'</td>'
+      +'</tr>';
+  }).join("");
+
+  var anticipoRow = anticipo>0 ? (
+    '<tr class="ant-row">'
+    +'<td colspan="2"><strong>Anticipo</strong>'+(trabajo.facturaAnticipo?" &mdash; Fac: "+trabajo.facturaAnticipo:"")+'</td>'
+    +'<td style="text-align:right">$ '+fmt(anticipo)+'</td>'
+    +'<td>'+(trabajo.facturaAnticipo||"-")+'</td>'
+    +'<td>'+(trabajo.anticipoPagado?'<span style="color:#15803d;font-weight:700">Cobrado</span>':'<span style="color:#b45309;font-weight:700">Pendiente</span>')+'</td>'
+    +'</tr>'
+  ) : "";
+
+  return '<!DOCTYPE html><html lang="es"><head>'
+    +'<meta charset="UTF-8"/>'
+    +'<title>Estado de Cuenta - '+trabajo.obra+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"DM Sans",sans-serif;color:#1e293b;background:#fff;font-size:13px}'
+    +'@page{size:A4;margin:18mm 16mm 18mm 16mm}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+
+    /* membrete */
+    +'.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #2563eb;margin-bottom:20px}'
+    +'.logo-wrap{display:flex;align-items:center;gap:12px}'
+    +'.logo-img{width:60px;height:60px;object-fit:contain;border-radius:10px}'
+    +'.logo-fb{width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px}'
+    +'.company-name{font-family:"DM Serif Display",serif;font-size:24px;color:#1e293b}'
+    +'.company-sub{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.doc-info{text-align:right}'
+    +'.doc-title{font-size:14px;font-weight:700;color:#2563eb;letter-spacing:.04em;text-transform:uppercase}'
+    +'.doc-date{color:#64748b;font-size:11px;margin-top:4px}'
+
+    /* obra info */
+    +'.obra-block{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;margin-bottom:18px}'
+    +'.obra-nombre{font-family:"DM Serif Display",serif;font-size:20px;color:#1e293b;margin-bottom:6px}'
+    +'.obra-meta{display:flex;gap:24px;flex-wrap:wrap}'
+    +'.obra-meta span{font-size:12px;color:#475569}'
+    +'.obra-meta strong{color:#1e293b}'
+
+    /* resumen financiero */
+    +'.resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}'
+    +'.res-box{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}'
+    +'.res-label{font-size:9px;font-weight:700;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase;margin-bottom:4px}'
+    +'.res-value{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}'
+    +'.res-total .res-value{color:#1e293b}'
+    +'.res-anticipo .res-value{color:#d97706}'
+    +'.res-cobrado .res-value{color:#16a34a}'
+    +'.res-pendiente .res-value{color:'+(pendiente>0?"#dc2626":"#16a34a")+'}'
+
+    /* tabla */
+    +'.section-title{font-size:10px;font-weight:700;letter-spacing:.08em;color:#475569;text-transform:uppercase;margin-bottom:8px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}'
+    +'thead tr{background:#1e293b;color:white}'
+    +'thead th{padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em}'
+    +'tbody tr{border-bottom:1px solid #f1f5f9}'
+    +'tbody tr:nth-child(even){background:#f8fafc}'
+    +'tbody td{padding:8px 10px;vertical-align:middle}'
+    +'.ant-row{background:#fffbeb!important;border-bottom:2px solid #fde68a}'
+
+    /* totales */
+    +'.totales-row{background:#f0fdf4!important;font-weight:700}'
+    +'.totales-row td{border-top:2px solid #16a34a;padding:10px}'
+
+    /* pendiente destacado */
+    +'.pendiente-box{background:'+(pendiente>0?"#fef2f2":"#f0fdf4")+';border:2px solid '+(pendiente>0?"#fecaca":"#86efac")+';border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}'
+    +'.pend-label{font-size:12px;font-weight:600;color:'+(pendiente>0?"#991b1b":"#166534")+'}'
+    +'.pend-amount{font-size:22px;font-weight:700;color:'+(pendiente>0?"#dc2626":"#16a34a")+';font-variant-numeric:tabular-nums}'
+
+    /* footer */
+    +'.footer{border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:24px}'
+    +'.footer-note{color:#94a3b8;font-size:10px}'
+    +'</style></head><body>'
+
+    /* MEMBRETE */
+    +'<div class="header">'
+    +'<div class="logo-wrap">'
+    +'<img class="logo-img" src="'+LOGO_SRC+'" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;" alt="Logo"/>'
+    +'<div class="logo-fb" style="display:none">ID</div>'
+    +'<div><div class="company-name">GestionObra</div><div class="company-sub">Sistema de Gestion de Trabajos</div></div>'
+    +'</div>'
+    +'<div class="doc-info">'
+    +'<div class="doc-title">Estado de Cuenta</div>'
+    +'<div class="doc-date">Emitido el '+hoy+'</div>'
+    +'</div>'
+    +'</div>'
+
+    /* OBRA */
+    +'<div class="obra-block">'
+    +'<div class="obra-nombre">'+trabajo.obra+'</div>'
+    +'<div class="obra-meta">'
+    +'<span>Fecha de registro: <strong>'+fmtFecha(trabajo.fecha)+'</strong></span>'
+    +'<span>Estado: <strong>'+(STATUS[trabajo.estado]||STATUS.pendiente).label+'</strong></span>'
+    +(trabajo.descripcion?'<span>Descripcion: <strong>'+trabajo.descripcion+'</strong></span>':"")
+    +'</div>'
+    +'</div>'
+
+    /* RESUMEN */
+    +'<div class="resumen">'
+    +'<div class="res-box res-total"><div class="res-label">Presupuesto</div><div class="res-value">$ '+fmt(monto)+'</div></div>'
+    +'<div class="res-box res-anticipo"><div class="res-label">Anticipo</div><div class="res-value">$ '+fmt(anticipo)+'</div></div>'
+    +'<div class="res-box res-cobrado"><div class="res-label">Cobrado</div><div class="res-value">$ '+fmt(cobrado)+'</div></div>'
+    +'<div class="res-box res-pendiente"><div class="res-label">Pendiente</div><div class="res-value">$ '+fmt(pendiente)+'</div></div>'
+    +'</div>'
+
+    /* TABLA PAGOS */
+    +'<div class="section-title">Detalle de pagos</div>'
+    +'<table>'
+    +'<thead><tr><th>#</th><th>Fecha</th><th style="text-align:right">Monto</th><th>N Factura</th><th>Estado</th></tr></thead>'
+    +'<tbody>'
+    +anticipoRow
+    +cuotasRows
+    +'<tr class="totales-row">'
+    +'<td colspan="2">Total</td>'
+    +'<td style="text-align:right">$ '+fmt(monto)+'</td>'
+    +'<td></td>'
+    +'<td>'+cpag+'/'+ctot+' cuota'+(ctot!==1?'s':'')+' cobrada'+(cpag!==1?'s':'')+'</td>'
+    +'</tr>'
+    +'</tbody></table>'
+
+    /* PENDIENTE */
+    +'<div class="pendiente-box">'
+    +'<div class="pend-label">'+(pendiente>0?"Saldo pendiente de cobro":"Obra cobrada en su totalidad")+'</div>'
+    +'<div class="pend-amount">$ '+fmt(pendiente)+'</div>'
+    +'</div>'
+
+    /* FOOTER */
+    +'<div class="footer">'
+    +'<span class="footer-note">GestionObra &mdash; Documento generado el '+hoy+'</span>'
+    +'<span class="footer-note">Cuotas: '+cpag+' cobradas de '+ctot+' &mdash; Cuotas: '+fmt(anticipo>0?monto-anticipo:monto)+' saldo en cuotas</span>'
+    +'</div>'
+
+    +'</body></html>';
+}
+
+function buildBalanceHTML(cobros, totalPeriodo, porObra, porTipo, dateStart, dateEnd){
+  var hoy = fmtFecha(todayStr());
+
+  var obraRows = porObra.map(function(seg,i){
+    var pct = totalPeriodo>0?Math.round((seg.value/totalPeriodo)*100):0;
+    return '<tr>'
+      +'<td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:6px"></span>'+seg.label+'</td>'
+      +'<td style="text-align:right">$ '+fmt(seg.value)+'</td>'
+      +'<td style="text-align:right">'+pct+'%</td>'
+      +'</tr>';
+  }).join("");
+
+  var tipoRows = porTipo.map(function(seg,i){
+    var pct = totalPeriodo>0?Math.round((seg.value/totalPeriodo)*100):0;
+    return '<tr>'
+      +'<td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:6px"></span>'+seg.label+'</td>'
+      +'<td style="text-align:right">$ '+fmt(seg.value)+'</td>'
+      +'<td style="text-align:right">'+pct+'%</td>'
+      +'</tr>';
+  }).join("");
+
+  var detalleRows = cobros.map(function(c,i){
+    return '<tr>'
+      +'<td>'+fmtFecha(c.fecha)+'</td>'
+      +'<td>'+c.obra+(c.archivado?' <span style="font-size:9px;color:#94a3b8">[Arch.]</span>':"")+'</td>'
+      +'<td>'+c.tipo+'</td>'
+      +'<td>'+(c.factura||"-")+'</td>'
+      +'<td style="text-align:right;font-weight:600;color:#16a34a">$ '+fmt(c.monto)+'</td>'
+      +'</tr>';
+  }).join("");
+
+  return '<!DOCTYPE html><html lang="es"><head>'
+    +'<meta charset="UTF-8"/>'
+    +'<title>Balance de Cuentas - '+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"DM Sans",sans-serif;color:#1e293b;background:#fff;font-size:13px}'
+    +'@page{size:A4;margin:18mm 16mm 18mm 16mm}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #2563eb;margin-bottom:20px}'
+    +'.logo-wrap{display:flex;align-items:center;gap:12px}'
+    +'.logo-img{width:60px;height:60px;object-fit:contain;border-radius:10px}'
+    +'.logo-fb{width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px}'
+    +'.company-name{font-family:"DM Serif Display",serif;font-size:24px;color:#1e293b}'
+    +'.company-sub{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.doc-info{text-align:right}'
+    +'.doc-title{font-size:14px;font-weight:700;color:#2563eb;letter-spacing:.04em;text-transform:uppercase}'
+    +'.doc-period{color:#1e293b;font-size:12px;font-weight:600;margin-top:4px}'
+    +'.doc-date{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.total-box{background:linear-gradient(135deg,#1e40af,#3730a3);border-radius:12px;padding:20px 24px;color:white;text-align:center;margin-bottom:20px}'
+    +'.total-label{font-size:11px;font-weight:700;letter-spacing:.1em;opacity:.8;text-transform:uppercase}'
+    +'.total-amount{font-size:36px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0}'
+    +'.total-sub{font-size:11px;opacity:.65}'
+    +'.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}'
+    +'.section-box{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}'
+    +'.section-title{background:#f8fafc;padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:.08em;color:#475569;text-transform:uppercase;border-bottom:1px solid #e2e8f0}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}'
+    +'thead tr{background:#1e293b;color:white}'
+    +'thead th{padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.03em}'
+    +'tbody tr{border-bottom:1px solid #f1f5f9}'
+    +'tbody tr:nth-child(even){background:#f8fafc}'
+    +'tbody td{padding:8px 10px;vertical-align:middle}'
+    +'.totales-row{background:#f0fdf4!important;font-weight:700}'
+    +'.totales-row td{border-top:2px solid #16a34a;padding:10px}'
+    +'.footer{border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:24px}'
+    +'.footer-note{color:#94a3b8;font-size:10px}'
+    +'</style></head><body>'
+
+    +'<div class="header">'
+    +'<div class="logo-wrap">'
+    +'<img class="logo-img" src="'+LOGO_SRC+'" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;" alt="Logo"/>'
+    +'<div class="logo-fb" style="display:none">ID</div>'
+    +'<div><div class="company-name">GestionObra</div><div class="company-sub">Sistema de Gestion de Trabajos</div></div>'
+    +'</div>'
+    +'<div class="doc-info">'
+    +'<div class="doc-title">Balance de Cuentas</div>'
+    +'<div class="doc-period">'+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</div>'
+    +'<div class="doc-date">Emitido el '+hoy+'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="total-box">'
+    +'<div class="total-label">Total cobrado en el periodo</div>'
+    +'<div class="total-amount">$ '+fmt(totalPeriodo)+'</div>'
+    +'<div class="total-sub">'+cobros.length+' cobro'+(cobros.length!==1?"s":"")+'</div>'
+    +'</div>'
+
+    +'<div class="grid-2">'
+    +'<div class="section-box">'
+    +'<div class="section-title">Desglose por obra</div>'
+    +'<table><thead><tr><th>Obra</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead>'
+    +'<tbody>'+obraRows
+    +'<tr class="totales-row"><td>Total</td><td style="text-align:right">$ '+fmt(totalPeriodo)+'</td><td style="text-align:right">100%</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+
+    +'<div class="section-box">'
+    +'<div class="section-title">Desglose por tipo de cobro</div>'
+    +'<table><thead><tr><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead>'
+    +'<tbody>'+tipoRows
+    +'<tr class="totales-row"><td>Total</td><td style="text-align:right">$ '+fmt(totalPeriodo)+'</td><td style="text-align:right">100%</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="section-box" style="margin-bottom:20px">'
+    +'<div class="section-title">Detalle completo de cobros</div>'
+    +'<table><thead><tr><th>Fecha</th><th>Obra</th><th>Tipo</th><th>N Factura</th><th style="text-align:right">Monto</th></tr></thead>'
+    +'<tbody>'+detalleRows
+    +'<tr class="totales-row"><td colspan="4">Total del periodo</td><td style="text-align:right">$ '+fmt(totalPeriodo)+'</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+
+    +'<div class="footer">'
+    +'<span class="footer-note">GestionObra &mdash; Documento generado el '+hoy+'</span>'
+    +'<span class="footer-note">Balance: '+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</span>'
+    +'</div>'
+
+    +'</body></html>';
+}
+
 /* ─ MoneyInput ─────────────────────────────────────── */
 function MoneyInput(props){
   var value=props.value; var onChange=props.onChange; var placeholder=props.placeholder; var extStyle=props.style||{};
@@ -328,7 +619,18 @@ function CuotasModal(props){
         h("span",{style:{fontSize:13,fontWeight:600,color:Math.abs(diff)<2?"#16a34a":diff>0?"#dc2626":"#d97706"}},
           "Cuotas: $ "+fmt(total)+(Math.abs(diff)<2?" OK":diff>0?" (excede $"+fmt(diff)+")": " (faltan $"+fmt(-diff)+")")
         ),
-        h("div",{style:{display:"flex",gap:8}},
+        h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+          h("button",{
+            onClick:function(){
+              /* armar trabajo temporal con los valores actuales del modal para el PDF */
+              var tTemp=merge(trabajo,{cuotas:cuotas,anticipo:anticipo,facturaAnticipo:factAnt,anticipoPagado:antPag,pagoPagado:pagoPagado,facturaFull:factFull});
+              printHTML(buildEstadoCuentasHTML(tTemp,calcTotals),"estado-"+trabajo.obra);
+            },
+            style:{padding:"8px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}
+          },
+            h("span",null,"PDF"),
+            h("span",{style:{fontSize:11,opacity:.8}},"Estado de cuenta")
+          ),
           h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
           h("button",{onClick:function(){onSave(cuotas,anticipo,factAnt,antPag,pagoPagado,factFull);},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar")
         )
@@ -503,8 +805,21 @@ function BalanceTab(props){
   var detalle=selObra?cobros.filter(function(c){return c.obra===selObra;}):cobros;
   var iS={background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
 
+  function exportarBalancePDF(){
+    printHTML(buildBalanceHTML(cobros,totalPeriodo,porObra,porTipo,dateStart,dateEnd),"balance");
+  }
+
   return h("div",{style:{padding:16,maxWidth:900,margin:"0 auto",paddingBottom:80}},
-    h("h2",{style:{fontFamily:"'DM Serif Display',serif",fontSize:22,margin:"0 0 16px",color:T.text}},"Balance"),
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+      h("h2",{style:{fontFamily:"'DM Serif Display',serif",fontSize:22,margin:0,color:T.text}},"Balance"),
+      totalPeriodo>0&&h("button",{
+        onClick:exportarBalancePDF,
+        style:{padding:"8px 16px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}
+      },
+        h("span",null,"PDF"),
+        h("span",{style:{fontSize:11,opacity:.8}},"Exportar balance")
+      )
+    ),
 
     /* filtro período */
     h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:"14px 16px",marginBottom:18,display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}},
