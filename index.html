@@ -1248,4 +1248,59 @@ function App(){
                   )
                 ),
                 h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
-       
+                  mostrarArch
+                    ?(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" archivada"+(trabajosFiltrados.length!==1?"s":""))
+                    :(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" activa"+(trabajosFiltrados.length!==1?"s":"")+(busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"")+" - mas reciente primero")
+                )
+              ),
+              loading
+                ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,display:"flex",flexDirection:"column",alignItems:"center",gap:13}},h(Spinner,{size:28}),h("p",null,"Cargando..."))
+                :trabajosFiltrados.length===0
+                  ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},
+                      h("p",{style:{margin:0,fontSize:14,color:T.textMid}},busqueda?"Sin resultados para \""+busqueda+"\"":mostrarArch?"No hay obras archivadas":"Sin trabajos registrados"),
+                      busqueda&&h("button",{onClick:function(){setBusqueda("");},style:{marginTop:9,padding:"6px 13px",background:T.accentBg,border:"1px solid #bfdbfe",borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Limpiar")
+                    )
+                  :trabajosFiltrados.map(function(t){
+                      return h(TrabajoCard,{key:t.id,t:t,saving:savingId===t.id,onDelete:handleDelete,onStatus:handleStatus,onCuotas:setCuotasModal});
+                    })
+            )
+          ),
+
+    /* cuotas modal */
+    cuotasModal&&h(CuotasModal,{
+      trabajo:cuotasModal,
+      onSave:function(cuotas,ant,factAnt,antPag,pagoPagado,factFull){handleSaveCuotas(cuotasModal.id,cuotas,ant,factAnt,antPag,pagoPagado,factFull);},
+      onClose:function(){setCuotasModal(null);}
+    }),
+
+    /* footer */
+    h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        h("div",{style:{width:8,height:8,borderRadius:"50%",background:"#4ade80",boxShadow:"0 0 6px #4ade80",animation:"pulse 2s infinite"}}),
+        h("span",{style:{color:"#94a3b8",fontSize:11,fontWeight:600}},
+          trabajos.length+" trabajo"+(trabajos.length!==1?"s":"")+" registrado"+(trabajos.length!==1?"s":"")
+        )
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+          h("span",{style:{color:"#64748b",fontSize:11}},"Pendiente $:"),
+          h("span",{style:{color:totalPendienteARS>0?"#fbbf24":"#4ade80",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
+            "$ "+fmt(totalPendienteARS)
+          )
+        ),
+        hayUSD&&h("div",{style:{display:"flex",alignItems:"center",gap:6,paddingLeft:12,borderLeft:"1px solid #334155"}},
+          h("span",{style:{color:"#64748b",fontSize:11}},"Pendiente U$S:"),
+          h("span",{style:{color:totalPendienteUSD>0?"#fbbf24":"#4ade80",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
+            "U$S "+fmt(totalPendienteUSD)
+          )
+        )
+      )
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App,null));
+})();
+</script>
+</body>
+</html>
