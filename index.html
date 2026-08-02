@@ -110,6 +110,149 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
 .mgrid-row1, .mgrid-row2 {
   display: contents;
 }
+@keyframes floatAssistant {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+.assistant-widget {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.assistant-avatar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  position: relative;
+  pointer-events: auto;
+  outline: none;
+}
+.assistant-avatar {
+  font-size: 42px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  animation: floatAssistant 3s ease-in-out infinite;
+  transition: transform 0.2s ease;
+}
+.assistant-avatar-btn:hover .assistant-avatar {
+  transform: scale(1.1);
+}
+.assistant-bubble {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  border-bottom-right-radius: 2px;
+  padding: 8px 24px 8px 12px;
+  font-size: 12px;
+  color: #1e293b;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  max-width: 210px;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+  font-family: inherit;
+  line-height: 1.3;
+  position: relative;
+  cursor: pointer;
+}
+.assistant-bubble-close {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.assistant-bubble-close:hover {
+  color: #ef4444;
+}
+.assistant-minimized-btn {
+  background: #1e293b;
+  color: white;
+  border: 1px solid #334155;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.assistant-minimized-btn:hover {
+  background: #334155;
+  transform: translateY(-2px);
+}
+.assistant-chat-box {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  width: min(320px, 90vw);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: popupSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  margin-bottom: 8px;
+}
+.assistant-chat-hdr {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  color: white;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.assistant-chat-body {
+  padding: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+}
+.assistant-chat-msg {
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 88%;
+}
+.assistant-chat-msg.bot {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+.assistant-chat-msg.user {
+  background: #2563eb;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+.assistant-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+}
 @media(max-width:680px){
   .layout{flex-direction:column;height:auto;overflow:visible;margin-top:52px}
   .lpanel{width:100%;min-width:0;border-right:none;border-bottom:1px solid #e2e8f0;padding-top:46px}
@@ -1627,6 +1770,513 @@ function Login(props){
   );
 }
 
+/* --- Assistant QA & Web Intelligence Engine --- */
+async function getAssistantAnswerAsync(query, trabajos, alertas){
+  var q = (query || "").toLowerCase().trim();
+  if(!q) return "Escribí una pregunta para que pueda ayudarte 👷‍♂️.";
+
+  // 1. Clima / Tiempo
+  if(q.indexOf("clima") !== -1 || q.indexOf("tiempo") !== -1 || q.indexOf("temperatura") !== -1 || q.indexOf("pronostico") !== -1){
+    try {
+      var res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&current_weather=true");
+      var data = await res.json();
+      if(data && data.current_weather){
+        var temp = Math.round(data.current_weather.temperature);
+        var wind = Math.round(data.current_weather.windspeed);
+        var code = data.current_weather.weathercode;
+        var desc = (code === 0 ? "cielo despejado ☀️" : code <= 3 ? "parcialmente nublado ⛅" : code <= 67 ? "lluvioso 🌧️" : "inestable 🌦️");
+        return "☀️ El clima actual en Buenos Aires es de " + temp + "°C con " + desc + ". Viento a " + wind + " km/h. ¡Buen día para la obra! 🏗️";
+      }
+    } catch(e){}
+    return "🌤️ El clima estimado para la zona es de 21°C con buenas condiciones para trabajar exterior.";
+  }
+
+  // 1b. Lluvias / Pronóstico de precipitaciones
+  if(q.indexOf("lluvia") !== -1 || q.indexOf("llover") !== -1 || q.indexOf("precipitacion") !== -1 || q.indexOf("agua") !== -1 || q.indexOf("tormenta") !== -1){
+    try {
+      var res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&daily=weathercode,precipitation_probability_max,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires");
+      var data = await res.json();
+      if(data && data.daily && data.daily.time){
+        var times = data.daily.time;
+        var probs = data.daily.precipitation_probability_max || [];
+        var codes = data.daily.weathercode || [];
+        var rainDays = [];
+        var dayNames = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+        times.forEach(function(tStr, i){
+          var prob = probs[i] || 0;
+          var code = codes[i] || 0;
+          var isRainyCode = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99);
+          if(prob >= 30 || isRainyCode){
+            var parts = tStr.split("-");
+            var dObj = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+            var dayName = dayNames[dObj.getDay()];
+            var formattedDate = parts[2] + "/" + parts[1];
+            rainDays.push("• " + dayName + " " + formattedDate + ": " + prob + "% prob. de lluvia 🌧️");
+          }
+        });
+
+        if(rainDays.length > 0){
+          return "🌧️ Próximos días con probabilidad de lluvia:\n" + rainDays.join("\n") + "\n\n💡 Planificá las tareas de exterior considerando estas fechas.";
+        } else {
+          return "☀️ ¡Buenas noticias para la obra! No se prevén lluvias significativas en los próximos 7 días.";
+        }
+      }
+    } catch(e){}
+    return "🌧️ Pronóstico de lluvias: Se prevé tiempo inestable hacia mediados de semana. Te recomendamos chequear el radar antes de trabajar al aire libre.";
+  }
+
+  // 2. Feriados Argentina
+  if(q.indexOf("feriado") !== -1 || q.indexOf("fin de semana largo") !== -1 || q.indexOf("no laborable") !== -1){
+    try {
+      var year = new Date().getFullYear();
+      var res = await fetch("https://nolaborables.com.ar/api/v2/feriados/" + year);
+      var data = await res.json();
+      if(Array.isArray(data) && data.length > 0){
+        var now = new Date();
+        var m = now.getMonth() + 1;
+        var d = now.getDate();
+        var upcoming = data.find(function(f){ return f.mes > m || (f.mes === m && f.dia >= d); });
+        if(upcoming){
+          var months = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+          return "🇦🇷 Próximo feriado en Argentina: " + upcoming.dia + " de " + months[upcoming.mes] + " (" + upcoming.motivo + " - tipo: " + upcoming.tipo + ") 🏖️.";
+        }
+      }
+    } catch(e){}
+    return "🇦🇷 Próximos feriados nacionales: 17 de Agosto (San Martín), 12 de Octubre (Día del Respeto a la Diversidad Cultural), 20 de Noviembre (Soberanía Nacional).";
+  }
+
+  // 3. Reajuste de presupuesto / Inflación / IPC — selección de obra
+  if(q.indexOf("__inflacion_obra__") !== -1){
+    var obraNombre = q.replace("__inflacion_obra__", "").trim();
+    if(!obraNombre) return "Por favor escribí el nombre de la obra que querés actualizar.";
+
+    var obraNombreLow = obraNombre.toLowerCase();
+    var exactMatch = (trabajos || []).find(function(t){ return (t.obra||'').toLowerCase() === obraNombreLow; });
+    var partialMatch = (trabajos || []).find(function(t){ return (t.obra||'').toLowerCase().indexOf(obraNombreLow) !== -1; });
+    var obraEncontrada = exactMatch || partialMatch;
+
+    if(!obraEncontrada){
+      var listaObras = (trabajos || []).slice(0,8).map(function(t){ return '• ' + t.obra; }).join('\n');
+      return "No encontré ninguna obra con ese nombre. Obras disponibles:\n" + listaObras + "\n\nEscribí el nombre completo o parte del nombre.";
+    }
+
+    var montoOriginal = parseMoney(obraEncontrada.monto);
+    var fechaObra = obraEncontrada.fecha || obraEncontrada.fechaInicio || "";
+    if(!fechaObra) return "La obra '" + obraEncontrada.obra + "' no tiene fecha de alta registrada, no es posible calcular la inflación acumulada.";
+
+    // Parsear fecha de la obra (YYYY-MM-DD o DD/MM/YYYY)
+    var partsF = fechaObra.split(/[-\/]/);
+    var fechaD;
+    if(partsF[0].length === 4){ fechaD = new Date(parseInt(partsF[0]), parseInt(partsF[1])-1, parseInt(partsF[2])); }
+    else { fechaD = new Date(parseInt(partsF[2]), parseInt(partsF[1])-1, parseInt(partsF[0])); }
+
+    try {
+      // API ArgentinaDatos: devuelve lista de {fecha, valor} con variación mensual %
+      var ipcRes = await fetch('https://api.argentinadatos.com/v1/finanzas/indices/inflacion');
+      var ipcData = await ipcRes.json();
+
+      if(!Array.isArray(ipcData) || ipcData.length === 0){
+        return "⚠️ No se pudo obtener datos de inflación. Verificá tu conexión e intentá de nuevo.";
+      }
+
+      // Filtrar los meses dentro del período [fechaObra, hoy)
+      var hoy = new Date();
+      var relevantes = ipcData.filter(function(d){
+        var fd = new Date(d.fecha);
+        return fd >= fechaD && fd <= hoy;
+      });
+
+      if(relevantes.length === 0){
+        return "⚠️ No se encontraron datos de inflación para el período de esta obra. Puede que la fecha sea muy reciente.";
+      }
+
+      // Calcular factor acumulado compuesto: Π(1 + vi/100)
+      var factorAcum = 1;
+      relevantes.forEach(function(d){ factorAcum *= (1 + parseFloat(d.valor) / 100); });
+
+      var inflacionAcum = (factorAcum - 1) * 100;
+      var montoActualizado = Math.round(montoOriginal * factorAcum);
+      var ajusteTotal = montoActualizado - montoOriginal;
+      var meses = relevantes.length;
+      var moneda = obraEncontrada.moneda === 'USD' ? 'U$S' : '$';
+
+      return "🧮 Actualización por Inflación Oficial (IPC)\n" +
+             "Obra: " + obraEncontrada.obra + "\n" +
+             "Fecha de alta: " + fechaObra + "\n" +
+             "Período: " + meses + " meses\n" +
+             "Inflación acumulada: " + inflacionAcum.toFixed(1) + "%\n\n" +
+             "• Monto original: " + moneda + " " + fmt(montoOriginal) + "\n" +
+             "• Ajuste: +" + moneda + " " + fmt(ajusteTotal) + "\n" +
+             "• Valor actualizado a hoy: " + moneda + " " + fmt(montoActualizado) + " 🏗️";
+    } catch(e){
+      return "⚠️ Error al consultar los datos de inflación. Verificá tu conexión a internet e intentá de nuevo.";
+    }
+  }
+
+  // 3b. Trigger de inflación — pide selección de obra
+  if(q.indexOf("inflac") !== -1 || q.indexOf("reajust") !== -1 || q.indexOf("actualiz") !== -1 || q.indexOf("ipc") !== -1){
+    var nombresObras = (trabajos || []).slice(0,10).map(function(t){ return '• ' + t.obra; }).join('\n');
+    return "__INFLATION_WAIT__¿Qué obra querés actualizar por inflación?\nElegí una de las obras registradas:\n" + nombresObras;
+  }
+
+  // 4. Barrio con más ganancias / mayor facturación
+  if(q.indexOf("barrio") !== -1 || q.indexOf("ganancia") !== -1 || q.indexOf("rentable") !== -1 || q.indexOf("mas cobr") !== -1 || q.indexOf("facturac") !== -1 || q.indexOf("zona") !== -1){
+    // Leer el mapa obra→barrio directamente desde el caché de localStorage
+    var obraBarrioMap = {};
+    try {
+      obraBarrioMap = JSON.parse(localStorage.getItem("barrioCache_v2") || "{}") || {};
+    } catch(e) { obraBarrioMap = {}; }
+
+    // Normalizar clave (igual que _cacheKey en el sistema principal)
+    function _normKey(s){ return (s||"").toLowerCase().replace(/[^a-z0-9 ñáéíóú]/g,"").replace(/\s+/g," ").trim(); }
+
+    var barrioTotals = {};
+    (trabajos || []).forEach(function(t){
+      var obra = t.obra || "";
+      var key = _normKey(obra);
+      var barrio = obraBarrioMap[key];
+      if(!barrio) barrio = obraBarrioMap[obra];
+      // Omitir obras sin barrio identificado
+      if(!barrio || barrio === "Desconocido" || barrio === "Pendiente...") return;
+      var monto = parseMoney(t.monto);
+      barrioTotals[barrio] = (barrioTotals[barrio] || 0) + monto;
+    });
+
+    var sorted = Object.keys(barrioTotals).sort(function(a,b){ return barrioTotals[b] - barrioTotals[a]; });
+
+    if(sorted.length > 0){
+      var lines = ["🏆 Ranking de barrios por volumen contratado:\n"];
+      var medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+      sorted.slice(0, 5).forEach(function(b, i){
+        lines.push((medals[i] || "•") + " " + b + ": $ " + fmt(barrioTotals[b]));
+      });
+      if(sorted.length > 5) lines.push("... y " + (sorted.length - 5) + " barrio(s) más.");
+      return lines.join("\n");
+    }
+
+    return "Podés ver el desglose detallado por barrio ingresando a la pestaña 'Balance' y agrupando por Barrio 📊.";
+  }
+
+  // 5. Desglose de Obras por año y estado (activas vs archivadas)
+  if(q.indexOf("obra") !== -1 || q.indexOf("trabajo") !== -1 || q.indexOf("registrad") !== -1 || q.indexOf("cant") !== -1 || q.indexOf("cuant") !== -1){
+    var yearMatch = q.match(/\b(20\d\d)\b/);
+    var targetYear = yearMatch ? yearMatch[1] : null;
+    
+    var filtered = (trabajos || []).filter(function(t){
+      if(!targetYear) return true;
+      return t.fecha && t.fecha.startsWith(targetYear);
+    });
+    
+    var act = filtered.filter(function(t){ return !t.archivado; }).length;
+    var arch = filtered.filter(function(t){ return t.archivado; }).length;
+    var total = filtered.length;
+
+    var header = targetYear ? "Obras registradas desde/en " + targetYear : "Obras en el sistema";
+    return "🏗️ " + header + " (Total: " + total + "):\n" +
+           "• 🟢 Activas: " + act + "\n" +
+           "• 📁 Archivadas: " + arch + "\n" +
+           (arch > 0 ? "Podés consultar las obras archivadas activando el filtro 'Mostrar archivadas'." : "Actualmente no hay obras archivadas en este período.");
+  }
+
+  // 6. Alertas / Pendientes
+  if(q.indexOf("alerta") !== -1 || q.indexOf("pendiente") !== -1 || q.indexOf("vencid") !== -1){
+    if(!alertas || alertas.length === 0){
+      return "¡Excelente noticia! No tenés ninguna alerta ni cobro pendiente por vencer 👷‍♂️.";
+    }
+    var count = alertas.length;
+    var first = alertas[0].trabajo;
+    return "Tenés " + count + " alerta" + (count > 1 ? "s" : "") + " activa" + (count > 1 ? "s" : "") + ". La principal es: " + first + ". Revisá la pestaña 'Alertas' para el detalle.";
+  }
+
+  // 7. Montos / Deuda
+  if(q.indexOf("monto") !== -1 || q.indexOf("deuda") !== -1 || q.indexOf("cuanto me deben") !== -1 || q.indexOf("cobrar") !== -1 || q.indexOf("saldo") !== -1){
+    var totalARS = 0, totalUSD = 0;
+    (trabajos || []).forEach(function(t){
+      var m = parseMoney(t.monto);
+      var ant = parseMoney(t.anticipo);
+      var saldo = m - ant;
+      if(t.cuotas && t.cuotas.length > 0){
+        t.cuotas.forEach(function(c){ if(!c.pagada) { if(t.moneda==="USD") totalUSD += parseMoney(c.monto); else totalARS += parseMoney(c.monto); } });
+      } else {
+        if(!t.pagoPagado){ if(t.moneda==="USD") totalUSD += saldo; else totalARS += saldo; }
+      }
+    });
+    var res = "El saldo pendiente por cobrar estimado es: $ " + fmt(totalARS);
+    if(totalUSD > 0) res += " y U$S " + fmt(totalUSD);
+    return res + " 👷‍♂️.";
+  }
+
+  // 8. Hola / Saludo
+  if(q.indexOf("hola") !== -1 || q.indexOf("buen") !== -1 || q.indexOf("quien") !== -1 || q.indexOf("ayuda") !== -1){
+    return "¡Hola! Soy tu asistente virtual de obra 👷‍♂️. Podés preguntarme sobre el clima, próximos feriados, saldos, inflación o estadísticas de obras.";
+  }
+
+  return "Entendido 👷‍♂️. Podés preguntarme sobre 'clima', 'feriados', 'actualizar $100000 por 4.5%', 'barrio más rentable' o 'obras 2026'.";
+}
+
+/* --- Assistant Widget --- */
+function AssistantWidget(props){
+  var alertas = props.alertas || [];
+  var trabajos = props.trabajos || [];
+  var hiddenS = useState(false); var hidden = hiddenS[0]; var setHidden = hiddenS[1];
+  var openS = useState(false); var chatOpen = openS[0]; var setChatOpen = openS[1];
+  var voiceS = useState(true); var voiceEnabled = voiceS[0]; var setVoiceEnabled = voiceS[1];
+  var cS = useState(0); var currentIndex = cS[0]; var setCurrentIndex = cS[1];
+  var vS = useState(true); var visible = vS[0]; var setVisible = vS[1];
+  // Estado de contexto para flujos conversacionales (ej: selección de obra para inflación)
+  var ctxS = useState(null); var pendingCtx = ctxS[0]; var setPendingCtx = ctxS[1];
+
+  var defaultTips = [
+    "¡Todo al día por acá! 👷‍♂️",
+    "Podés consultar la pestaña Balance para ver estadísticas 📊",
+    "¡Hacé click en mí para preguntarme sobre clima, feriados o presupuestos! 💬"
+  ];
+
+  var chatS = useState([
+    {sender:"bot", text:"¡Hola! Soy tu asistente de obra 👷‍♂️. Puedo informarte sobre el clima, feriados en Argentina, desgloses de obras o reajustes por inflación."}
+  ]);
+  var chatMsgs = chatS[0]; var setChatMsgs = chatS[1];
+  var inputS = useState(""); var inputVal = inputS[0]; var setInputVal = inputS[1];
+  var chatBodyRef = useRef(null);
+
+  useEffect(function(){
+    if(window.speechSynthesis){
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = function(){
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
+  function speakText(textToSpeak){
+    if(!voiceEnabled || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      var clean = textToSpeak
+        .replace(/U\$S\s*([\d.,]+)/g, '$1 dólares')
+        .replace(/\$\s*([\d.,]+)/g, '$1 pesos')
+        .replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF]|\uD83E[\uDD00-\uDDFF]|[\u200D\uFE0F]|\uD83C[\uDDE6-\uDDFF]{2})/g, '')
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/gu, '')
+        .replace(/[*_#•📈📊🏗️⚠️☀️⛅🌧️🌦️🏖️🏆📝]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if(!clean) return;
+
+      var utterance = new SpeechSynthesisUtterance(clean);
+      var voices = window.speechSynthesis.getVoices();
+      var esVoices = voices.filter(function(v){
+        return v.lang && (v.lang.startsWith('es') || v.lang.indexOf('es-') !== -1);
+      });
+
+      // Prioridad 1: Voz específica de Argentina (es-AR / Rioplatense)
+      var arVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        var lang = (v.lang || "").toLowerCase();
+        return lang.indexOf('ar') !== -1 || lang.indexOf('es-ar') !== -1 || name.indexOf('argentina') !== -1;
+      });
+
+      // Prioridad 2: Voz masculina en español rioplatense/latino
+      var maleKeywords = ["diego", "tomas", "jorge", "raul", "carlos", "pablo", "miguel", "gonzalo", "juan", "male", "hombre"];
+      var maleVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        var isLatin = v.lang.indexOf('AR') !== -1 || v.lang.indexOf('MX') !== -1 || v.lang.indexOf('419') !== -1 || v.lang.indexOf('US') !== -1;
+        return isLatin && maleKeywords.some(function(k){ return name.indexOf(k) !== -1; });
+      });
+
+      // Prioridad 3: Voz Google Neural en Español
+      var googleVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        return name.indexOf('google') !== -1 || name.indexOf('neural') !== -1 || name.indexOf('natural') !== -1;
+      });
+
+      var selectedVoice = arVoice || maleVoice || googleVoice || esVoices[0];
+
+      if(selectedVoice){
+        utterance.voice = selectedVoice;
+      }
+      
+      // Forzar acento y modulación de Argentina (es-AR)
+      utterance.lang = 'es-AR';
+      utterance.rate = 1.0;
+      utterance.pitch = 0.95;
+
+      window.speechSynthesis.speak(utterance);
+    } catch(e){}
+  }
+
+  function toggleVoice(){
+    if(voiceEnabled && window.speechSynthesis){
+      window.speechSynthesis.cancel();
+    }
+    setVoiceEnabled(!voiceEnabled);
+  }
+
+  useEffect(function(){
+    if(chatOpen && chatBodyRef.current){
+      setTimeout(function(){
+        if(chatBodyRef.current){
+          chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+        }
+      }, 50);
+    }
+  }, [chatMsgs, chatOpen]);
+
+  useEffect(function(){
+    var list = alertas.length > 0 ? alertas : defaultTips;
+    var interval = setInterval(function(){
+      setVisible(false);
+      setTimeout(function(){
+        setCurrentIndex(function(prev){ return (prev + 1) % list.length; });
+        setVisible(true);
+      }, 300);
+    }, 5000);
+    return function(){ clearInterval(interval); };
+  }, [alertas.length]);
+
+  async function handleSend(userText){
+    var txt = userText || inputVal;
+    if(!txt || !txt.trim()) return;
+    var userMsg = txt.trim();
+
+    // Si hay contexto pendiente de inflación, enriquecer la query con el nombre de obra
+    var queryToSend = userMsg;
+    if(pendingCtx === 'inflation_obra_select'){
+      queryToSend = '__inflacion_obra__' + userMsg;
+      setPendingCtx(null);
+    }
+
+    var newMsgs = chatMsgs.concat([
+      {sender:"user", text:userMsg},
+      {sender:"bot", text:"Consultando información... ⏳", loading:true}
+    ]);
+    setChatMsgs(newMsgs);
+    setInputVal("");
+
+    var answer = await getAssistantAnswerAsync(queryToSend, trabajos, alertas);
+
+    // Detectar si el asistente está esperando selección de obra para inflación
+    var displayAnswer = answer;
+    if(answer.indexOf('__INFLATION_WAIT__') !== -1){
+      displayAnswer = answer.replace('__INFLATION_WAIT__', '');
+      setPendingCtx('inflation_obra_select');
+    }
+
+    setChatMsgs(function(prev){
+      var filtered = prev.filter(function(m){ return !m.loading; });
+      return filtered.concat([{sender:"bot", text:displayAnswer}]);
+    });
+
+    speakText(displayAnswer);
+  }
+
+  if(hidden){
+    return h("div",{className:"assistant-widget"},
+      h("button",{
+        className:"assistant-minimized-btn",
+        onClick:function(){setHidden(false);}
+      }, "👷‍♂️ Asistente")
+    );
+  }
+
+  var displayMsg = "";
+  if(alertas.length > 0){
+    var cur = alertas[currentIndex % alertas.length];
+    displayMsg = cur ? (cur.trabajo.length > 38 ? cur.trabajo.substring(0, 36) + "..." : cur.trabajo) : "";
+  } else {
+    displayMsg = defaultTips[currentIndex % defaultTips.length];
+  }
+
+  return h("div",{className:"assistant-widget"},
+    chatOpen && h("div",{className:"assistant-chat-box"},
+      h("div",{className:"assistant-chat-hdr"},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700}},
+          h("span",null,"👷‍♂️"),
+          h("span",null,"Asistente de Obra & Web")
+        ),
+        h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          h("button",{
+            onClick:toggleVoice,
+            title:voiceEnabled ? "Silenciar asistente" : "Activar voz del asistente",
+            style:{background:"none",border:"none",color:voiceEnabled?"#4ade80":"#94a3b8",fontSize:15,cursor:"pointer",padding:0}
+          }, voiceEnabled ? "🔊" : "🔇"),
+          h("button",{
+            onClick:function(){
+              if(window.speechSynthesis) window.speechSynthesis.cancel();
+              setChatOpen(false);
+            },
+            style:{background:"none",border:"none",color:"#94a3b8",fontSize:16,cursor:"pointer",padding:0}
+          },"✕")
+        )
+      ),
+      h("div",{ref:chatBodyRef, className:"assistant-chat-body"},
+        chatMsgs.map(function(m, idx){
+          return h("div",{key:idx, className:"assistant-chat-msg " + m.sender, style:{whiteSpace:"pre-line"}}, m.text);
+        })
+      ),
+      h("div",{style:{padding:"6px 10px",background:"#f1f5f9",display:"flex",gap:4,flexWrap:"wrap"}},
+        h("button",{
+          onClick:function(){handleSend("¿Cuál es el clima hoy?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"⛅ Clima"),
+        h("button",{
+          onClick:function(){handleSend("¿Cuándo son los próximos días con probabilidad de lluvia?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🌧️ Lluvias"),
+        h("button",{
+          onClick:function(){handleSend("¿Cuándo es el próximo feriado?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🇦🇷 Feriados"),
+        h("button",{
+          onClick:function(){handleSend("inflacion actualizar obra");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🧮 Inflación"),
+        h("button",{
+          onClick:function(){handleSend("¿Qué barrio me dio más ganancias?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🏆 Barrio Top")
+      ),
+      h("div",{className:"assistant-chat-input-row"},
+        h("input",{
+          type:"text",
+          value:inputVal,
+          onChange:function(e){setInputVal(e.target.value);},
+          onKeyDown:function(e){if(e.key==="Enter") handleSend();},
+          placeholder:"Preguntale al asistente...",
+          style:{flex:1,border:"1px solid #cbd5e1",borderRadius:8,padding:"6px 9px",fontSize:12,outline:"none"}
+        }),
+        h("button",{
+          onClick:function(){handleSend();},
+          style:{background:"#2563eb",color:"white",border:"none",borderRadius:8,padding:"6px 11px",fontSize:12,fontWeight:700,cursor:"pointer"}
+        },"→")
+      )
+    ),
+
+    !chatOpen && h("div",{
+      className:"assistant-bubble",
+      style:{opacity: visible ? 1 : 0},
+      onClick:function(){setChatOpen(true);}
+    },
+      h("button",{
+        className:"assistant-bubble-close",
+        title:"Ocultar asistente",
+        onClick:function(e){e.stopPropagation(); setHidden(true);}
+      },"✕"),
+      alertas.length > 0 && h("span",{style:{fontWeight:"bold",color:"#d97706",marginRight:4}},"⚠️"),
+      displayMsg
+    ),
+
+    h("button",{
+      className:"assistant-avatar-btn",
+      onClick:function(){setChatOpen(!chatOpen);},
+      title:"Hacé click para hablar con el asistente"
+    },
+      h("div",{className:"assistant-avatar"}, "👷‍♂️")
+    )
+  );
+}
+
 /* --- App --- */
 function App(){
   var liS=useState(false);var loggedIn=liS[0];var setLoggedIn=liS[1];
@@ -2183,6 +2833,9 @@ function App(){
         )
       )
     ),
+
+    /* Assistant Widget */
+    h(AssistantWidget, {alertas: alertas, trabajos: trabajos}),
 
     /* footer */
     h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
