@@ -1,0 +1,3705 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GestionObra 2.0</title>
+<link rel="icon" type="image/png" href="favicon.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<!-- Chart.js CDN for beautiful interactive charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Dropbox Chooser (drop-in): permite elegir/soltar un archivo de Dropbox y obtener su enlace real -->
+<script type="text/javascript" src="https://www.dropbox.com/static/api/2/dropins.js" id="dropboxjs" data-app-key="bo8fu1wp27csixz"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#f1f5f9;color:#1e293b}
+h1,h2,h3,h4,.title-font{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#2563eb!important}
+select option{background:#fff;color:#1e293b}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:3px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes toastCenterIn {
+  0%  { transform: scale(0.82) translateY(12px); opacity: 0; }
+  60% { transform: scale(1.03) translateY(-2px); opacity: 1; }
+  100%{ transform: scale(1)    translateY(0);    opacity: 1; }
+}
+@keyframes popupBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes popupSlideIn {
+  from { opacity: 0; transform: scale(0.93) translateY(18px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes slideTab {
+  from { opacity: 0; transform: translate3d(15px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.layout{display:flex;height:calc(100vh - 46px);overflow:hidden}
+.lpanel{width:276px;min-width:276px;background:#fff;border-right:1px solid #e2e8f0;padding:46px 14px 70px;overflow-y:auto;flex-shrink:0}
+.rpanel{flex:1;overflow-y:auto;padding:0 14px 70px} /* FIXED padding top to allow sticky banner to hide elements behind */
+.qmoney{display:flex;gap:14px;flex-shrink:0;margin-right:4px}
+.qmobile{display:none;gap:8px;margin-top:5px;flex-wrap:wrap}
+
+/* Toast styling (Centralized rectangle) */
+.toast-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  z-index: 10000;
+  pointer-events: none;
+  background: rgba(10, 15, 32, 0.52);
+  backdrop-filter: blur(6px);
+  animation: popupBackdropIn 0.22s ease forwards;
+}
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #ffffff;
+  color: #1e293b;
+  padding: 30px 45px;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+  min-width: 290px;
+  max-width: 420px;
+  text-align: center;
+  animation: toastCenterIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border: 1px solid #e2e8f0;
+}
+.toast-icon {
+  font-size: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 2px;
+}
+.toast-success .toast-icon {
+  background: #dcfce7;
+  color: #10b981;
+}
+.toast-info .toast-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.toast-warning .toast-icon {
+  background: #fef9ec;
+  color: #d97706;
+}
+.toast-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.mgrid-row1, .mgrid-row2 {
+  display: contents;
+}
+
+/* Dropbox drag & drop overlay */
+@keyframes dropZonePulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+.dropbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37, 99, 235, 0.18);
+  backdrop-filter: blur(3px);
+  animation: popupBackdropIn .15s ease forwards;
+  pointer-events: none;
+}
+.dropbox-overlay-box {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #ffffff;
+  border: 3px dashed #2563eb;
+  border-radius: 24px;
+  padding: 46px 64px;
+  box-shadow: 0 25px 70px rgba(37,99,235,.28);
+  animation: dropZonePulse 1.4s ease-in-out infinite;
+}
+.dropbox-btn-fab {
+  position: fixed;
+  bottom: 60px;
+  left: 20px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 30px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg,#2563eb,#4f46e5);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(37,99,235,.35);
+}
+@keyframes floatAssistant {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+.assistant-widget {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.assistant-avatar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  position: relative;
+  pointer-events: auto;
+  outline: none;
+}
+.assistant-avatar {
+  font-size: 42px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  animation: floatAssistant 3s ease-in-out infinite;
+  transition: transform 0.2s ease;
+}
+.assistant-avatar-btn:hover .assistant-avatar {
+  transform: scale(1.1);
+}
+.assistant-bubble {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  border-bottom-right-radius: 2px;
+  padding: 8px 24px 8px 12px;
+  font-size: 12px;
+  color: #1e293b;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  max-width: 210px;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+  font-family: inherit;
+  line-height: 1.3;
+  position: relative;
+  cursor: pointer;
+}
+.assistant-bubble-close {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.assistant-bubble-close:hover {
+  color: #ef4444;
+}
+.assistant-minimized-btn {
+  background: #1e293b;
+  color: white;
+  border: 1px solid #334155;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.assistant-minimized-btn:hover {
+  background: #334155;
+  transform: translateY(-2px);
+}
+.assistant-chat-box {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  width: min(320px, 90vw);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: popupSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  margin-bottom: 8px;
+}
+.assistant-chat-hdr {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  color: white;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.assistant-chat-body {
+  padding: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+}
+.assistant-chat-msg {
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 88%;
+}
+.assistant-chat-msg.bot {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+.assistant-chat-msg.user {
+  background: #2563eb;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+.assistant-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+}
+@media(max-width:680px){
+  .layout{flex-direction:column;height:auto;overflow:visible;margin-top:52px}
+  .lpanel{width:100%;min-width:0;border-right:none;border-bottom:1px solid #e2e8f0;padding-top:46px}
+  .rpanel{padding:0 10px 70px}
+  .qmoney{display:none}
+  .qmobile{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding:6px 9px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
+  .qmobile-row{display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px}
+  .fgrid{grid-template-columns:repeat(3,1fr)!important}
+  .mgrid-hdr{display:none!important}
+  .mgrid{display:flex!important;flex-direction:column!important;gap:6px!important;padding:8px 10px!important;background:#f8fafc!important;border:1px solid #e2e8f0!important;border-radius:10px!important;margin-bottom:8px!important}
+  .mgrid-row1{display:flex!important;align-items:center!important;gap:6px!important;width:100%!important}
+  .mgrid-row2{display:flex!important;align-items:center!important;gap:6px!important;width:100%!important}
+  .mbox{padding:14px!important;width:calc(100vw - 12px)!important}
+  
+  /* Mobile single-row header — FIXED */
+  .hdr-container{position:fixed!important;top:0!important;left:0!important;right:0!important;flex-direction:row!important;align-items:flex-start!important;justify-content:flex-start!important;height:52px!important;padding:0 10px!important;gap:0!important;overflow:visible!important;z-index:200!important}
+  .hdr-brand{flex-shrink:0!important}
+  .hdr-logo-overflow{transform:translateY(4px)!important;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45))!important}
+  .hdr-sep-desktop{display:none!important}
+  .hdr-mobile-right{display:flex!important;flex-direction:column!important;justify-content:center!important;gap:2px!important;flex:1!important;min-width:0!important;padding:4px 0 4px 8px!important;height:100%!important;align-items:stretch!important}
+  .hdr-title{font-size:12px!important;white-space:nowrap!important;letter-spacing:-0.01em!important;line-height:1.2!important;opacity:0.75!important}
+  .hdr-tabs{display:flex!important;justify-content:flex-start!important;gap:3px!important;width:100%!important;align-items:center!important;margin-left:0!important}
+  .hdr-btn{flex:none!important;padding:4px 7px!important;font-size:11px!important;text-align:center!important;justify-content:center!important}
+  .hdr-icon-btn{padding:3px 6px!important;font-size:13px!important;line-height:1!important}
+  .tab-content-wrap{padding-top:98px!important}
+  
+  /* Mobile PDF viewer modal */
+  .pdf-modal-box{width:100vw!important;height:94vh!important;border-radius:12px!important;margin:0!important}
+  .pdf-modal-container{padding:6px!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+"use strict";
+
+/* ---- Sound Engine (HTML5 Audio) ---- */
+var _sndNotif = null;
+var _sndCash  = null;
+var _sndLogin = null;
+
+function _getSndNotif(){
+  if(!_sndNotif){
+    _sndNotif = new Audio("https://cdn.pixabay.com/download/audio/2026/03/02/audio_0ff77f8b5d.mp3?filename=universfield-new-notification-051-494246.mp3");
+    _sndNotif.volume = 0.55;
+    _sndNotif.preload = "auto";
+  }
+  return _sndNotif;
+}
+
+function _getSndCash(){
+  if(!_sndCash){
+    _sndCash = new Audio("https://cdn.pixabay.com/download/audio/2026/05/20/audio_11170fc5ce.mp3?filename=sergioproductions-cash-register-537208.mp3");
+    _sndCash.volume = 0.60;
+    _sndCash.preload = "auto";
+  }
+  return _sndCash;
+}
+
+function _getSndLogin(){
+  if(!_sndLogin){
+    _sndLogin = new Audio("https://cdn.pixabay.com/download/audio/2023/06/01/audio_77fe776ce5.mp3?filename=universfield-simple-notification-152054.mp3");
+    _sndLogin.volume = 0.60;
+    _sndLogin.preload = "auto";
+  }
+  return _sndLogin;
+}
+
+function playPopupSound(){
+  try{
+    var s = _getSndNotif();
+    s.currentTime = 0;
+    s.play().catch(function(){});
+  }catch(e){}
+}
+
+function playCashRegisterSound(){
+  try{
+    var s = _getSndCash();
+    s.currentTime = 0;
+    s.play().catch(function(){});
+  }catch(e){}
+}
+
+function playLoginSound(){
+  try{
+    var s = _getSndLogin();
+    s.currentTime = 0;
+    s.play().catch(function(){});
+  }catch(e){}
+}
+/* ---- End Sound Engine ---- */
+
+var API_URL   = "https://script.google.com/macros/s/AKfycbxICW4cXDPleIQeGyaTx8O5A9_N0rxZpXT7DG4-Wz0qcBi9PU-4gY9i0Eu5vxt15m9yoA/exec";
+var CRED_USER = "ivandimiero";
+var CRED_PASS = "Salta1954";
+var LOGO_SRC  = "https://lh3.googleusercontent.com/d/1j4NDB2m07aY6SY7DPv2LBzXwliAPXhsF";
+
+var useState    = React.useState;
+var useEffect   = React.useEffect;
+var useCallback = React.useCallback;
+var useMemo     = React.useMemo;
+var useRef      = React.useRef;
+var h           = React.createElement;
+
+var T = {
+  bg:"#f1f5f9",surface:"#fff",surfaceAlt:"#f8fafc",
+  border:"#e2e8f0",borderMid:"#cbd5e1",
+  text:"#1e293b",textMid:"#475569",textSoft:"#94a3b8",
+  accent:"#2563eb",accentBg:"#eff6ff"
+};
+
+var STATUS = {
+  urgente:   {label:"A Iniciar - Urgente",color:"#dc2626",bg:"#fef2f2",text:"#991b1b",dot:"#ef4444"},
+  pendiente: {label:"Pendiente",          color:"#d97706",bg:"#fffbeb",text:"#92400e",dot:"#f59e0b"},
+  en_curso:  {label:"En Curso",           color:"#0284c7",bg:"#f0f9ff",text:"#075985",dot:"#38bdf8"},
+  finalizado:{label:"Finalizado",         color:"#16a34a",bg:"#f0fdf4",text:"#166534",dot:"#4ade80"}
+};
+
+var CHART_COLORS = ["#2563eb","#7c3aed","#db2777","#ea580c","#16a34a","#0891b2","#ca8a04","#dc2626","#4f46e5","#059669"];
+
+function parseMoney(s){
+  if(s===null||s===undefined||s==="") return 0;
+  return parseInt(String(s).replace(/\./g,"").replace(/[^\d]/g,""),10)||0;
+}
+
+// Normalize address for grouping: lower case, remove punctuation, collapse spaces
+function normalizeAddress(addr){
+  if(!addr) return "";
+  return addr.toLowerCase()
+    .replace(/[.,;:\-_/]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* =====================================================================
+   GEOCODIFICACIÓN POR BARRIO (CABA) — Nominatim / OpenStreetMap
+   ===================================================================== */
+
+// Expandir abreviaturas comunes en direcciones de CABA
+var ABREV_MAP = [
+  [/\bav\.?\s*/gi, "Avenida "],
+  [/\bgral\.?\s*/gi, "General "],
+  [/\bdr\.?\s*/gi, "Doctor "],
+  [/\bdra\.?\s*/gi, "Doctora "],
+  [/\bpte\.?\s*/gi, "Presidente "],
+  [/\bpres\.?\s*/gi, "Presidente "],
+  [/\binte\.?\s*/gi, "Intendente "],
+  [/\btte\.?\s*/gi, "Teniente "],
+  [/\bcnel\.?\s*/gi, "Coronel "],
+  [/\bcap\.?\s*/gi, "Capitan "],
+  [/\bsarg\.?\s*/gi, "Sargento "],
+  [/\bpje\.?\s*/gi, "Pasaje "],
+  [/\bpas\.?\s*/gi, "Pasaje "],
+  [/\bdiag\.?\s*/gi, "Diagonal "],
+  [/\bjuan\s+b\.\s*/gi, "Juan Bautista "],
+  [/\bj\.\s*b\.\s*/gi, "Juan Bautista "],
+  [/\bj\.?\s*m\.?\s*/gi, "Jose Maria "],
+  [/\bbv\.?\s*/gi, "Boulevard "],
+  [/\bblvd\.?\s*/gi, "Boulevard "]
+];
+
+function expandirAbreviaturas(addr){
+  if(!addr) return "";
+  var s = addr;
+  ABREV_MAP.forEach(function(pair){ s = s.replace(pair[0], pair[1]); });
+  return s.replace(/\s+/g, " ").trim();
+}
+
+// Clave de cache: texto normalizado (minúsculas, sin puntuación)
+function _cacheKey(addr){
+  return addr.toLowerCase().replace(/[^a-z0-9 ñáéíóú]/g,"").replace(/\s+/g," ").trim();
+}
+
+// Convert Dropbox or Google Drive URL to iframe embeddable URL
+function formatPdfEmbedUrl(url){
+  if(!url) return "";
+  var u = url.trim();
+  // Dropbox: convert dl=0 / dl=1 to raw=1
+  if(u.indexOf("dropbox.com") !== -1){
+    if(u.indexOf("raw=1") === -1){
+      if(u.indexOf("?") !== -1){
+        u = u.replace(/dl=[01]/g, "raw=1");
+        if(u.indexOf("raw=1") === -1) u += "&raw=1";
+      } else {
+        u += "?raw=1";
+      }
+    }
+    // Append PDF view parameters to hide sidebar page thumb navpanes
+    if(u.indexOf("#") === -1) u += "#toolbar=1&navpanes=0";
+    return u;
+  }
+  // Google Drive: convert /view, /edit to /preview
+  if(u.indexOf("drive.google.com") !== -1){
+    if(u.indexOf("/preview") === -1){
+      u = u.replace(/\/view(\?.*)?$/g, "/preview").replace(/\/edit(\?.*)?$/g, "/preview");
+      if(u.indexOf("/preview") === -1 && u.indexOf("/file/d/") !== -1){
+        u = u.replace(/\/$/, "") + "/preview";
+      }
+    }
+    return u;
+  }
+  if(u.indexOf("#") === -1 && (u.endsWith(".pdf") || u.indexOf(".pdf?") !== -1)){
+    u += "#toolbar=1&navpanes=0";
+  }
+  return u;
+}
+
+var _barrioCache = null;
+function _getCache(){
+  if(_barrioCache) return _barrioCache;
+  try{ _barrioCache = JSON.parse(localStorage.getItem("barrioCache_v2")||"{}")||{}; }
+  catch(e){ _barrioCache = {}; }
+  return _barrioCache;
+}
+function _saveCache(){
+  try{ localStorage.setItem("barrioCache_v2", JSON.stringify(_getCache())); }catch(e){}
+}
+function getBarrioFromCache(addr){ return _getCache()[_cacheKey(addr)]; }
+function setBarrioInCache(addr, barrio){ _getCache()[_cacheKey(addr)] = barrio; _saveCache(); }
+
+// Extrae el barrio de la respuesta de Nominatim
+function _extractBarrio(data){
+  if(!data || !data.address) return null;
+  var a = data.address;
+  // Prioridad: neighbourhood > suburb > city_district > borough
+  return a.neighbourhood || a.suburb || a.city_district || a.borough || null;
+}
+
+// Queue with controlled concurrency for Nominatim CABA queries
+var _nominatimQueue = [];
+var _activeQueries = 0;
+var _MAX_CONCURRENT = 2;
+
+function _runQueue(){
+  if(_activeQueries >= _MAX_CONCURRENT || _nominatimQueue.length === 0) return;
+  _activeQueries++;
+  var task = _nominatimQueue.shift();
+  task.run().then(function(result){
+    task.resolve(result);
+    setTimeout(function(){
+      _activeQueries--;
+      _runQueue();
+    }, 450);
+  }).catch(function(){
+    task.resolve(null);
+    setTimeout(function(){
+      _activeQueries--;
+      _runQueue();
+    }, 450);
+  });
+}
+function _enqueueNominatim(fn){
+  return new Promise(function(resolve){
+    _nominatimQueue.push({run: fn, resolve: resolve});
+    _runQueue();
+  });
+}
+
+// Consulta Nominatim y devuelve nombre del barrio o null
+function _nominatimQuery(q){
+  var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1"
+    + "&countrycodes=ar"
+    + "&q=" + encodeURIComponent(q + ", Ciudad Autonoma de Buenos Aires, Argentina");
+  return fetch(url, {
+    headers: {"Accept-Language": "es", "User-Agent": "GestionObra/2.0 (sistema interno)"},
+    cache: "no-store"
+  }).then(function(r){ return r.json(); }).then(function(arr){
+    if(!arr || arr.length === 0) return null;
+    return _extractBarrio(arr[0]);
+  }).catch(function(){ return null; });
+}
+
+// Función principal: resuelve barrio de una dirección, con caché y fallback
+function resolverBarrioCABA(addr){
+  var cached = getBarrioFromCache(addr);
+  if(cached !== undefined) return Promise.resolve(cached);
+
+  var expanded = expandirAbreviaturas(addr);
+
+  return _enqueueNominatim(function(){
+    return _nominatimQuery(expanded).then(function(barrio){
+      if(barrio) return barrio;
+      // Segundo intento: solo la parte antes de la primera coma (calle + número)
+      var short = expanded.split(",")[0].trim();
+      if(short !== expanded){
+        return _nominatimQuery(short);
+      }
+      // Tercer intento: quitar número final para buscar solo por calle
+      var sinNum = short.replace(/\s+\d+\s*$/, "").trim();
+      if(sinNum && sinNum !== short){
+        return _nominatimQuery(sinNum);
+      }
+      return null;
+    });
+  }).then(function(barrio){
+    var resultado = barrio || "Desconocido";
+    setBarrioInCache(addr, resultado);
+    return resultado;
+  });
+}
+
+/* --- Hook: resuelve barrios de todas las obras y agrupa cobros por barrio --- */
+function useBarrioResolver(trabajos, cobros, monFilter){
+  // Estado: mapa obraId->barrio
+  var [barrioMap, setBarrioMap] = useState({});
+  var [resolving, setResolving] = useState(false);
+  var [resolvedCount, setResolvedCount] = useState(0);
+  var [totalCount, setTotalCount] = useState(0);
+  var abortRef = useRef(false);
+
+  // Obras únicas (por nombre de obra, todas activas y archivadas)
+  var obrasUnicas = useMemo(function(){
+    var seen = {};
+    var lista = [];
+    trabajos.forEach(function(t){
+      if(!seen[t.obra]){
+        seen[t.obra] = true;
+        lista.push(t.obra);
+      }
+    });
+    return lista;
+  }, [trabajos]);
+
+  useEffect(function(){
+    if(obrasUnicas.length === 0) return;
+    abortRef.current = false;
+
+    // Cuáles ya están en caché
+    var pendientes = obrasUnicas.filter(function(o){ return getBarrioFromCache(o) === undefined; });
+
+    // Cargar las que ya están en caché al mapa inicial
+    var initialMap = {};
+    obrasUnicas.forEach(function(o){
+      var c = getBarrioFromCache(o);
+      if(c !== undefined) initialMap[o] = c;
+    });
+    setBarrioMap(initialMap);
+
+    if(pendientes.length === 0){
+      setResolving(false);
+      setResolvedCount(0);
+      setTotalCount(0);
+      return;
+    }
+
+    setResolving(true);
+    setTotalCount(pendientes.length);
+    setResolvedCount(0);
+
+    var resolved = 0;
+    pendientes.forEach(function(obra){
+      resolverBarrioCABA(obra).then(function(barrio){
+        if(abortRef.current) return;
+        resolved++;
+        setResolvedCount(function(p){ return p + 1; });
+        setBarrioMap(function(prev){
+          var next = Object.assign({}, prev);
+          next[obra] = barrio;
+          return next;
+        });
+        if(resolved >= pendientes.length){
+          setResolving(false);
+        }
+      });
+    });
+
+    return function(){ abortRef.current = true; };
+  }, [obrasUnicas.join("|")]); // eslint-disable-line
+
+  // Agrupar cobros por barrio
+  var porBarrio = useMemo(function(){
+    var map = {};
+    cobros.forEach(function(c){
+      if((c.moneda || monFilter) && c.moneda && c.moneda !== monFilter) return;
+      var barrio = barrioMap[c.obra] || "Pendiente...";
+      if(!map[barrio]) map[barrio] = {label: barrio, value: 0};
+      map[barrio].value += c.monto;
+    });
+    var arr = [];
+    Object.keys(map).forEach(function(k){ arr.push(map[k]); });
+    arr.sort(function(a,b){ return b.value - a.value; });
+    return arr;
+  }, [barrioMap, cobros, monFilter]);
+
+  return {porBarrio: porBarrio, resolving: resolving, resolvedCount: resolvedCount, totalCount: totalCount, barrioMap: barrioMap};
+}
+/* ===== FIN GEOCODIFICACIÓN ===== */
+function fmt(v){ return parseMoney(v).toLocaleString("es-AR",{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function todayStr(){ return new Date().toISOString().split("T")[0]; }
+
+function normFecha(ds){
+  if(!ds) return "";
+  if(typeof ds === "object" && ds.getFullYear){
+    var yy=ds.getUTCFullYear();
+    var mm=String(ds.getUTCMonth()+1).padStart?String(ds.getUTCMonth()+1).padStart(2,"0"):(ds.getUTCMonth()<9?"0":"")+(ds.getUTCMonth()+1);
+    var dd=ds.getUTCDate()<10?"0"+ds.getUTCDate():""+ds.getUTCDate();
+    return yy+"-"+mm+"-"+dd;
+  }
+  var s=String(ds).trim();
+  if(s.length>10&&s.charAt(10)==="T") return s.substring(0,10);
+  if(s.indexOf("/")!==-1){
+    var p2=s.split("/");
+    if(p2.length===3){
+      var yr=p2[2].length===2?"20"+p2[2]:p2[2];
+      return yr+"-"+(p2[1].length<2?"0"+p2[1]:p2[1])+"-"+(p2[0].length<2?"0"+p2[0]:p2[0]);
+    }
+  }
+  return s.substring(0,10);
+}
+
+function fmtFecha(ds){
+  var s=normFecha(ds);
+  if(!s||s.length<10) return s||"";
+  var p=s.split("-");
+  if(p.length!==3) return s;
+  return p[2]+"/"+p[1]+"/"+p[0].substring(2);
+}
+function addDays(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
+function addMonths(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().split("T")[0]; }
+function cuotaDate(base,i){ var first=addDays(base,30); return i===0?first:addMonths(first,i); }
+var merge = function(a,b){ return Object.assign({},a,b); };
+function setKey(obj,key,val){ var r=Object.assign({},obj); r[key]=val; return r; }
+
+function fmtMoney(v, moneda){
+  var sym = (moneda==="USD") ? "U$S " : "$ ";
+  return sym + fmt(v);
+}
+
+function calcTotals(t){
+  var monto   = parseMoney(t.monto);
+  var anticipo= parseMoney(t.anticipo);
+  var ccMonto = (t.cuotas||[]).filter(function(c){return c.pagada;}).reduce(function(s,c){return s+parseMoney(c.monto);},0);
+  var cobrado     = (t.anticipoPagado?anticipo:0)+ccMonto;
+  var saldoCuotas = monto - anticipo;
+  var cuotasPend  = saldoCuotas - ccMonto;
+  var pendiente   = (t.anticipoPagado?0:anticipo) + cuotasPend;
+  return {monto:monto,anticipo:anticipo,saldoCuotas:saldoCuotas,ccMonto:ccMonto,cobrado:cobrado,pendiente:pendiente};
+}
+
+function esArchivado(t){
+  if(t.estado!=="finalizado") return false;
+  return calcTotals(t).pendiente<=0;
+}
+
+var api={
+  get:function(action){ return fetch(API_URL+"?action="+action).then(function(r){return r.json();}); },
+  post:function(action,payload){
+    return fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(Object.assign({action:action},payload))}).then(function(r){return r.json();});
+  }
+};
+
+function printHTML(htmlContent, filename){
+  var w = window.open("","_blank","width=900,height=700");
+  if(!w){ alert("Permití las ventanas emergentes para exportar PDF"); return; }
+  w.document.write(htmlContent);
+  w.document.close();
+  w.focus();
+  setTimeout(function(){
+    w.print();
+  }, 600);
+}
+
+/* --- PDF Print Helpers --- */
+function buildEstadoCuentasHTML(trabajo, calcTots){
+  var tots = calcTots(trabajo);
+  var monto     = tots.monto;
+  var anticipo  = tots.anticipo;
+  var cobrado   = tots.cobrado;
+  var pendiente = tots.pendiente;
+  var cuotas    = trabajo.cuotas||[];
+  var ctot      = cuotas.length;
+  var cpag      = cuotas.filter(function(c){return c.pagada;}).length;
+  var hoy       = fmtFecha(todayStr());
+
+  var cuotasRows = cuotas.map(function(c,i){
+    var estado = c.pagada
+      ? '<span style="color:#15803d;font-weight:700">Pagada</span>'
+      : '<span style="color:#b45309;font-weight:700">Pendiente</span>';
+    return '<tr>'
+      +'<td>'+(i+1)+'</td>'
+      +'<td>'+(c.indefinida?"Indefinida":fmtFecha(c.fecha))+'</td>'
+      +'<td style="text-align:right">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(c.monto)+'</td>'
+      +'<td>'+(c.nroFactura||"-")+'</td>'
+      +'<td>'+estado+'</td>'
+      +'</tr>';
+  }).join("");
+
+  var anticipoRow = anticipo>0 ? (
+    '<tr class="ant-row">'
+    +'<td colspan="2"><strong>Anticipo</strong>'+(trabajo.facturaAnticipo?" &mdash; Fac: "+trabajo.facturaAnticipo:"")+'</td>'
+    +'<td style="text-align:right">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(anticipo)+'</td>'
+    +'<td>'+(trabajo.facturaAnticipo||"-")+'</td>'
+    +'<td>'+(trabajo.anticipoPagado?'<span style="color:#15803d;font-weight:700">Cobrado</span>':'<span style="color:#b45309;font-weight:700">Pendiente</span>')+'</td>'
+    +'</tr>'
+  ) : "";
+
+  return '<!DOCTYPE html><html lang="es"><head>'
+    +'<meta charset="UTF-8"/>'
+    +'<title>Estado de Cuenta - '+trabajo.obra+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"DM Sans",sans-serif;color:#1e293b;background:#fff;font-size:13px}'
+    +'@page{size:A4;margin:18mm 16mm 18mm 16mm}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #2563eb;margin-bottom:20px}'
+    +'.logo-wrap{display:flex;align-items:center;gap:12px}'
+    +'.logo-img{width:60px;height:60px;object-fit:contain;border-radius:10px}'
+    +'.logo-fb{width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px}'
+    +'.company-name{font-family:"DM Serif Display",serif;font-size:24px;color:#1e293b}'
+    +'.company-sub{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.doc-info{text-align:right}'
+    +'.doc-title{font-size:14px;font-weight:700;color:#2563eb;letter-spacing:.04em;text-transform:uppercase}'
+    +'.doc-date{color:#64748b;font-size:11px;margin-top:4px}'
+    +'.obra-block{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;margin-bottom:18px}'
+    +'.obra-nombre{font-family:"DM Serif Display",serif;font-size:20px;color:#1e293b;margin-bottom:6px}'
+    +'.obra-meta{display:flex;gap:24px;flex-wrap:wrap}'
+    +'.obra-meta span{font-size:12px;color:#475569}'
+    +'.obra-meta strong{color:#1e293b}'
+    +'.resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}'
+    +'.res-box{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}'
+    +'.res-label{font-size:9px;font-weight:700;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase;margin-bottom:4px}'
+    +'.res-value{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}'
+    +'.res-total .res-value{color:#1e293b}'
+    +'.res-anticipo .res-value{color:#d97706}'
+    +'.res-cobrado .res-value{color:#16a34a}'
+    +'.res-pendiente .res-value{color:'+(pendiente>0?"#dc2626":"#16a34a")+'}'
+    +'.section-title{font-size:10px;font-weight:700;letter-spacing:.08em;color:#475569;text-transform:uppercase;margin-bottom:8px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}'
+    +'thead tr{background:#1e293b;color:white}'
+    +'thead th{padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em}'
+    +'tbody tr{border-bottom:1px solid #f1f5f9}'
+    +'tbody tr:nth-child(even){background:#f8fafc}'
+    +'tbody td{padding:8px 10px;vertical-align:middle}'
+    +'.ant-row{background:#fffbeb!important;border-bottom:2px solid #fde68a}'
+    +'.totales-row{background:#f0fdf4!important;font-weight:700}'
+    +'.totales-row td{border-top:2px solid #16a34a;padding:10px}'
+    +'.pendiente-box{background:'+(pendiente>0?"#fef2f2":"#f0fdf4")+';border:2px solid '+(pendiente>0?"#fecaca":"#86efac")+';border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}'
+    +'.pend-label{font-size:12px;font-weight:600;color:'+(pendiente>0?"#991b1b":"#166534")+'}'
+    +'.pend-amount{font-size:22px;font-weight:700;color:'+(pendiente>0?"#dc2626":"#16a34a")+';font-variant-numeric:tabular-nums}'
+    +'.footer{border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:24px}'
+    +'.footer-note{color:#94a3b8;font-size:10px}'
+    +'</style></head><body>'
+    +'<div class="header">'
+    +'<div class="logo-wrap">'
+    +'<img class="logo-img" src="'+LOGO_SRC+'" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;" alt="Logo"/>'
+    +'<div class="logo-fb" style="display:none">ID</div>'
+    +'<div><div class="company-name">GestionObra</div><div class="company-sub">Sistema de Gestion de Trabajos</div></div>'
+    +'</div>'
+    +'<div class="doc-info">'
+    +'<div class="doc-title">Estado de Cuenta</div>'
+    +'<div class="doc-date">Emitido el '+hoy+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="obra-block">'
+    +'<div class="obra-nombre">'+trabajo.obra+'</div>'
+    +'<div class="obra-meta">'
+    +'<span>Fecha de registro: <strong>'+fmtFecha(trabajo.fecha)+'</strong></span>'
+    +'<span>Estado: <strong>'+(STATUS[trabajo.estado]||STATUS.pendiente).label+'</strong></span>'
+    +(trabajo.descripcion?'<span>Descripción: <strong>'+trabajo.descripcion+'</strong></span>':"")
+    +'</div>'
+    +'</div>'
+    +'<div class="resumen">'
+    +'<div class="res-box res-total"><div class="res-label">Presupuesto</div><div class="res-value">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(monto)+'</div></div>'
+    +'<div class="res-box res-anticipo"><div class="res-label">Anticipo</div><div class="res-value">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(anticipo)+'</div></div>'
+    +'<div class="res-box res-cobrado"><div class="res-label">Cobrado</div><div class="res-value">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(cobrado)+'</div></div>'
+    +'<div class="res-box res-pendiente"><div class="res-label">Pendiente</div><div class="res-value">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(pendiente)+'</div></div>'
+    +'</div>'
+    +'<div class="section-title">Detalle de pagos</div>'
+    +'<table>'
+    +'<thead><tr><th>#</th><th>Fecha</th><th style="text-align:right">Monto</th><th>N Factura</th><th>Estado</th></tr></thead>'
+    +'<tbody>'
+    +anticipoRow
+    +cuotasRows
+    +'<tr class="totales-row">'
+    +'<td colspan="2">Total</td>'
+    +'<td style="text-align:right">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(monto)+'</td>'
+    +'<td></td>'
+    +'<td>'+cpag+'/'+ctot+' cuota'+(ctot!==1?'s':'')+' cobrada'+(cpag!==1?'s':'')+'</td>'
+    +'</tr>'
+    +'</tbody></table>'
+    +'<div class="pendiente-box">'
+    +'<div class="pend-label">'+(pendiente>0?"Saldo pendiente de cobro":"Obra cobrada en su totalidad")+'</div>'
+    +'<div class="pend-amount">'+(trabajo.moneda==="USD"?"U$S ":"$ ")+fmt(pendiente)+'</div>'
+    +'</div>'
+    +'<div class="footer">'
+    +'<span class="footer-note">GestionObra &mdash; Documento generado el '+hoy+'</span>'
+    +'<span class="footer-note">Cuotas: '+cpag+' cobradas de '+ctot+' &mdash; Cuotas: '+fmt(anticipo>0?monto-anticipo:monto)+' saldo en cuotas</span>'
+    +'</div>'
+    +'</body></html>';
+}
+
+function buildBalanceHTML(cobros, totalPeriodo, porObra, porTipo, dateStart, dateEnd, moneda){
+  var hoy = fmtFecha(todayStr());
+  var monSym = moneda==="USD"?"U$S ":"$ ";
+
+  var obraRows = porObra.map(function(seg,i){
+    var pct = totalPeriodo>0?Math.round((seg.value/totalPeriodo)*100):0;
+    return '<tr>'
+      +'<td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:6px"></span>'+seg.label+'</td>'
+      +'<td style="text-align:right">'+monSym+fmt(seg.value)+'</td>'
+      +'<td style="text-align:right">'+pct+'%</td>'
+      +'</tr>';
+  }).join("");
+
+  var tipoRows = porTipo.map(function(seg,i){
+    var pct = totalPeriodo>0?Math.round((seg.value/totalPeriodo)*100):0;
+    return '<tr>'
+      +'<td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:6px"></span>'+seg.label+'</td>'
+      +'<td style="text-align:right">'+monSym+fmt(seg.value)+'</td>'
+      +'<td style="text-align:right">'+pct+'%</td>'
+      +'</tr>';
+  }).join("");
+
+  var detalleRows = cobros.map(function(c,i){
+    return '<tr>'
+      +'<td>'+fmtFecha(c.fecha)+'</td>'
+      +'<td>'+c.obra+(c.archivado?' <span style="font-size:9px;color:#94a3b8">[Arch.]</span>':"")+'</td>'
+      +'<td>'+c.tipo+'</td>'
+      +'<td>'+(c.factura||"-")+'</td>'
+      +'<td style="text-align:right;font-weight:600;color:#16a34a">'+monSym+fmt(c.monto)+'</td>'
+      +'</tr>';
+  }).join("");
+
+  return '<!DOCTYPE html><html lang="es"><head>'
+    +'<meta charset="UTF-8"/>'
+    +'<title>Balance de Cuentas - '+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"DM Sans",sans-serif;color:#1e293b;background:#fff;font-size:13px}'
+    +'@page{size:A4;margin:18mm 16mm 18mm 16mm}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #2563eb;margin-bottom:20px}'
+    +'.logo-wrap{display:flex;align-items:center;gap:12px}'
+    +'.logo-img{width:60px;height:60px;object-fit:contain;border-radius:10px}'
+    +'.logo-fb{width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px}'
+    +'.company-name{font-family:"DM Serif Display",serif;font-size:24px;color:#1e293b}'
+    +'.company-sub{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.doc-info{text-align:right}'
+    +'.doc-title{font-size:14px;font-weight:700;color:#2563eb;letter-spacing:.04em;text-transform:uppercase}'
+    +'.doc-period{color:#1e293b;font-size:12px;font-weight:600;margin-top:4px}'
+    +'.doc-date{color:#64748b;font-size:11px;margin-top:2px}'
+    +'.total-box{background:linear-gradient(135deg,#1e40af,#3730a3);border-radius:12px;padding:20px 24px;color:white;text-align:center;margin-bottom:20px}'
+    +'.total-label{font-size:11px;font-weight:700;letter-spacing:.1em;opacity:.8;text-transform:uppercase}'
+    +'.total-amount{font-size:36px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0}'
+    +'.total-sub{font-size:11px;opacity:.65}'
+    +'.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}'
+    +'.section-box{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}'
+    +'.section-title{background:#f8fafc;padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:.08em;color:#475569;text-transform:uppercase;border-bottom:1px solid #e2e8f0}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}'
+    +'thead tr{background:#1e293b;color:white}'
+    +'thead th{padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.03em}'
+    +'tbody tr{border-bottom:1px solid #f1f5f9}'
+    +'tbody tr:nth-child(even){background:#f8fafc}'
+    +'tbody td{padding:8px 10px;vertical-align:middle}'
+    +'.totales-row{background:#f0fdf4!important;font-weight:700}'
+    +'.totales-row td{border-top:2px solid #16a34a;padding:10px}'
+    +'.footer{border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:24px}'
+    +'.footer-note{color:#94a3b8;font-size:10px}'
+    +'</style></head><body>'
+    +'<div class="header">'
+    +'<div class="logo-wrap">'
+    +'<img class="logo-img" src="'+LOGO_SRC+'" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;" alt="Logo"/>'
+    +'<div class="logo-fb" style="display:none">ID</div>'
+    +'<div><div class="company-name">GestionObra</div><div class="company-sub">Sistema de Gestion de Trabajos</div></div>'
+    +'</div>'
+    +'<div class="doc-info">'
+    +'<div class="doc-title">Balance de Cuentas</div>'
+    +'<div class="doc-period">'+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</div>'
+    +'<div class="doc-date">Emitido el '+hoy+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="total-box">'
+    +'<div class="total-label">Total cobrado en el periodo</div>'
+    +'<div class="total-amount">'+monSym+fmt(totalPeriodo)+'</div>'
+    +'<div class="total-sub">'+cobros.length+' cobro'+(cobros.length!==1?"s":"")+'</div>'
+    +'</div>'
+    +'<div class="grid-2">'
+    +'<div class="section-box">'
+    +'<div class="section-title">Desglose por obra</div>'
+    +'<table><thead><tr><th>Obra</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead>'
+    +'<tbody>'+obraRows
+    +'<tr class="totales-row"><td>Total</td><td style="text-align:right">'+monSym+fmt(totalPeriodo)+'</td><td style="text-align:right">100%</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'<div class="section-box">'
+    +'<div class="section-title">Desglose por tipo de cobro</div>'
+    +'<table><thead><tr><th>Tipo</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead>'
+    +'<tbody>'+tipoRows
+    +'<tr class="totales-row"><td>Total</td><td style="text-align:right">'+monSym+fmt(totalPeriodo)+'</td><td style="text-align:right">100%</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'</div>'
+    +'<div class="section-box" style="margin-bottom:20px">'
+    +'<div class="section-title">Detalle completo de cobros</div>'
+    +'<table><thead><tr><th>Fecha</th><th>Obra</th><th>Tipo</th><th>N Factura</th><th style="text-align:right">Monto</th></tr></thead>'
+    +'<tbody>'+detalleRows
+    +'<tr class="totales-row"><td colspan="4">Total del periodo</td><td style="text-align:right">'+monSym+fmt(totalPeriodo)+'</td></tr>'
+    +'</tbody></table>'
+    +'</div>'
+    +'<div class="footer">'
+    +'<span class="footer-note">GestionObra &mdash; Documento generado el '+hoy+'</span>'
+    +'<span class="footer-note">Balance: '+fmtFecha(dateStart)+' al '+fmtFecha(dateEnd)+'</span>'
+    +'</div>'
+    +'</body></html>';
+}
+
+/* --- MoneyInput --- */
+function MoneyInput(props){
+  var value=props.value; var onChange=props.onChange; var placeholder=props.placeholder; var extStyle=props.style||{};
+  var rawS=useState(function(){var n=parseMoney(value);return n?String(n):"";});
+  var raw=rawS[0];var setRaw=rawS[1];
+  var focS=useState(false);var focused=focS[0];var setFocused=focS[1];
+  useEffect(function(){ if(!focused){var n=parseMoney(value);setRaw(n?String(n):"");} },[value,focused]);
+  function handleChange(e){ var d=e.target.value.replace(/[^\d]/g,""); setRaw(d); onChange(d===""?"":parseInt(d,10)); }
+  var display=raw?parseInt(raw,10).toLocaleString("es-AR",{maximumFractionDigits:0}):"";
+  return h("input",{type:"text",inputMode:"numeric",value:display,placeholder:placeholder||"0",
+    onChange:handleChange,
+    onFocus:function(e){setFocused(true);setTimeout(function(){e.target.select();},0);},
+    onBlur:function(){setFocused(false);},
+    style:merge({fontVariantNumeric:"tabular-nums"},extStyle)});
+}
+
+/* --- Spinner --- */
+function Spinner(props){
+  var sz=props.size||20;var cl=props.color||T.accent;
+  return h("div",{style:{width:sz,height:sz,border:"2px solid "+cl+"33",borderTop:"2px solid "+cl,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}});
+}
+
+/* --- LogoImg --- */
+function LogoImg(props){
+  var sz=props.size||32;var id=props.id||"logo-img";var fbId=props.fbId||"logo-fb";
+  return h(React.Fragment,null,
+    h("img",{id:id,src:LOGO_SRC,alt:"GestionObra",
+      style:{width:sz,height:sz,objectFit:"contain",borderRadius:sz>40?12:6,display:"block"},
+      onError:function(){
+        var el=document.getElementById(id);if(el)el.style.display="none";
+        var fb=document.getElementById(fbId);if(fb)fb.style.display="flex";
+      }}),
+    h("div",{id:fbId,style:{display:"none",width:sz,height:sz,background:"linear-gradient(135deg,#2563eb,#4f46e5)",borderRadius:sz>40?14:8,alignItems:"center",justifyContent:"center",fontSize:sz>40?20:11,fontWeight:700,color:"white",flexShrink:0}},"ID")
+  );
+}
+
+/* --- Interactive Chart Wrapper Component --- */
+function BalanceChart(props){
+  var data = props.data;
+  var type = props.type;
+  var title = props.title;
+  var canvasRef = useRef(null);
+  var chartInst = useRef(null);
+
+  useEffect(function(){
+    if(!canvasRef.current) return;
+    if(chartInst.current){
+      chartInst.current.destroy();
+    }
+    var ctx = canvasRef.current.getContext("2d");
+    chartInst.current = new Chart(ctx, {
+      type: type,
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: !!title,
+            text: title,
+            font: { family: "'DM Serif Display', serif", size: 14, weight: 'bold' }
+          }
+        },
+        scales: (type === 'bar' || type === 'line') ? {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value){ return '$' + value.toLocaleString("es-AR"); }
+            }
+          }
+        } : undefined
+      }
+    });
+
+    return function(){
+      if(chartInst.current){
+        chartInst.current.destroy();
+      }
+    };
+  }, [data, type, title]);
+
+  return h("div",{style:{position:"relative",height:560,width:"100%"}},
+    h("canvas",{ref:canvasRef})
+  );
+}
+
+/* --- ClientAfipModal --- */
+function ClientAfipModal(props){
+  var conceptoStr = props.conceptoStr || "Factura AFIP";
+  var onSuccess = props.onSuccess;
+  var onClose = props.onClose;
+  var defaultCliente = props.defaultCliente;
+
+  var rsS = useState(defaultCliente ? (defaultCliente.razonSocial || "") : ""); var razonSocial = rsS[0]; var setRazonSocial = rsS[1];
+  var cS = useState(defaultCliente ? (defaultCliente.cuit || "") : ""); var cuit = cS[0]; var setCuit = cS[1];
+  var ivS = useState(defaultCliente ? (defaultCliente.condicionIVA || "Responsable Inscripto") : "Responsable Inscripto"); var condicionIVA = ivS[0]; var setCondicionIVA = ivS[1];
+  var pvS = useState("2"); var puntoVenta = pvS[0]; var setPuntoVenta = pvS[1];
+  var lS = useState(false); var loading = lS[0]; var setLoading = lS[1];
+  var eS = useState(""); var error = eS[0]; var setError = eS[1];
+  var fdS = useState(todayStr()); var fechaEmision = fdS[0]; var setFechaEmision = fdS[1];
+  var cpS = useState("2"); var concepto = cpS[0]; var setConcepto = cpS[1]; // 1=Productos, 2=Servicios, 3=Ambos
+  var fetchingCuitS = useState(false); var fetchingCuit = fetchingCuitS[0]; var setFetchingCuit = fetchingCuitS[1];
+  var cuitMsgS = useState(null); var cuitMsg = cuitMsgS[0]; var setCuitMsg = cuitMsgS[1]; // { type: 'info'|'success'|'error', text: '' }
+
+  var itS = useState(function(){
+    return [{ id: 1, descripcion: conceptoStr, cantidad: 1, monto: parseMoney(props.monto) }];
+  });
+  var items = itS[0]; var setItems = itS[1];
+  
+  var scS = useState(function(){
+    try { return JSON.parse(localStorage.getItem("afip_clientes")||"[]"); } catch(e){ return []; }
+  });
+  var savedClients = scS[0]; var setSavedClients = scS[1];
+  var selS = useState(""); var selectedClientIdx = selS[0]; var setSelectedClientIdx = selS[1];
+
+  function addItem(){
+    setItems(items.concat([{ id: Date.now(), descripcion: "", cantidad: 1, monto: 0 }]));
+  }
+
+  function removeItem(id){
+    if(items.length <= 1) return;
+    setItems(items.filter(function(it){ return it.id !== id; }));
+  }
+
+  function updateItem(id, field, val){
+    setItems(items.map(function(it){ return it.id === id ? setKey(it, field, val) : it; }));
+  }
+
+  var totalMonto = items.reduce(function(sum, it){ return sum + parseMoney(it.monto); }, 0);
+
+  function handleSelectClient(e){
+    var idx = e.target.value;
+    setSelectedClientIdx(idx);
+    if(idx !== "" && savedClients[idx]){
+      var c = savedClients[idx];
+      setRazonSocial(c.razonSocial || "");
+      setCuit(c.cuit || "");
+      setCondicionIVA(c.condicionIVA || "Responsable Inscripto");
+      setCuitMsg({ type: "success", text: "Cliente seleccionado: " + (c.razonSocial || c.cuit) });
+    }
+  }
+
+  // Formateador automático de CUIT: XX-XXXXXXXX-X
+  function formatCuitStr(val){
+    if(!val) return "";
+    var clean = String(val).replace(/\D/g, "").slice(0, 11);
+    if(clean.length <= 2) return clean;
+    if(clean.length <= 10) return clean.slice(0, 2) + "-" + clean.slice(2);
+    return clean.slice(0, 2) + "-" + clean.slice(2, 10) + "-" + clean.slice(10);
+  }
+
+  // Función para autocompletar desde backend AFIP/ARCA según CUIT
+  async function fetchCuitData(valCuit){
+    var clean = (valCuit || "").replace(/\D/g, "");
+    if(!clean || clean.length < 10){
+      setCuitMsg({ type: "error", text: "Ingresá los 11 dígitos del CUIT (ej: 27-28681547-8)." });
+      return;
+    }
+
+    // Verificar si ya está en savedClients localmente
+    var foundLocal = savedClients.find(function(sc){ return sc.cuit === clean; });
+    if(foundLocal){
+      if(foundLocal.razonSocial) setRazonSocial(foundLocal.razonSocial);
+      if(foundLocal.condicionIVA) setCondicionIVA(foundLocal.condicionIVA);
+      setCuitMsg({ type: "success", text: "Cliente guardado: " + (foundLocal.razonSocial || formatCuitStr(clean)) });
+    } else {
+      setCuitMsg({ type: "info", text: "Consultando padrón AFIP / ARCA..." });
+    }
+
+    setFetchingCuit(true);
+    try {
+      var res = await fetch("http://localhost:3000/persona", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cuit: clean })
+      });
+      var data = await res.json();
+      if(data && data.success){
+        if(data.razonSocial) setRazonSocial(data.razonSocial);
+        if(data.condicionIVA) setCondicionIVA(data.condicionIVA);
+
+        if(data.razonSocial){
+          setCuitMsg({ type: "success", text: "ARCA: " + data.razonSocial + " (" + (data.condicionIVA || "RI") + ")" });
+        } else if(data.isPersonaFisica){
+          setCuitMsg({ type: "info", text: "Persona Física / Consumidor Final (CUIT " + formatCuitStr(clean) + "). Podés ingresar el nombre a mano." });
+        } else {
+          setCuitMsg({ type: "info", text: "CUIT " + formatCuitStr(clean) + " listo para facturar (" + (data.condicionIVA || "Consumidor Final") + ")." });
+        }
+      } else {
+        if(!foundLocal){
+          setCuitMsg({ type: "error", text: (data && data.error) ? data.error : "No se encontró el CUIT en el padrón ARCA. Podés ingresar la Razón Social a mano." });
+        }
+      }
+    } catch(err){
+      console.warn("No se pudo autocompletar CUIT desde server AFIP/ARCA:", err);
+      if(!foundLocal){
+        setCuitMsg({ type: "error", text: "Servidor local desconectado. Encendelo corriendo 'node server.js' en afip-backend." });
+      }
+    } finally {
+      setFetchingCuit(false);
+    }
+  }
+
+  function handleCuitChange(val){
+    var formatted = formatCuitStr(val);
+    setCuit(formatted);
+    setCuitMsg(null);
+    var clean = formatted.replace(/\D/g, "");
+    if(clean.length === 11){
+      fetchCuitData(clean);
+    }
+  }
+
+  async function handleFacturar(){
+    var cleanCuit = cuit.replace(/\D/g,"");
+    if(!cleanCuit || cleanCuit.length < 10){
+      setError("Por favor ingrese un CUIT válido (11 dígitos).");
+      return;
+    }
+    if(totalMonto <= 0){
+      setError("El monto total de la factura debe ser mayor a $0.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      var res = await fetch("http://localhost:3000/facturar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          PuntoVunto: parseInt(puntoVenta || 2),
+          PuntoVenta: parseInt(puntoVenta || 2),
+          monto: totalMonto,
+          items: items,
+          fechaEmision: fechaEmision,
+          concepto: parseInt(concepto),
+          cliente: {
+            CUIT: cleanCuit,
+            razonSocial: razonSocial || ("Cliente " + cleanCuit),
+            condicionIVA: condicionIVA
+          }
+        })
+      });
+      var data = await res.json();
+      if(!data.success){
+        throw new Error(data.error || "Error al comunicarse con AFIP");
+      }
+      
+      // Guardar o actualizar cliente en localStorage afip_clientes
+      var clientName = razonSocial || ("Cliente " + cleanCuit);
+      var updatedClients = savedClients.slice();
+      var existingIdx = updatedClients.findIndex(function(c){ return c.cuit === cleanCuit; });
+      if(existingIdx >= 0){
+        updatedClients[existingIdx] = merge(updatedClients[existingIdx], {
+          razonSocial: clientName,
+          cuit: cleanCuit,
+          condicionIVA: condicionIVA
+        });
+      } else {
+        updatedClients.push({
+          id: Date.now(),
+          razonSocial: clientName,
+          cuit: cleanCuit,
+          condicionIVA: condicionIVA
+        });
+      }
+      setSavedClients(updatedClients);
+      localStorage.setItem("afip_clientes", JSON.stringify(updatedClients));
+
+      // Guardar factura emitida en localStorage afip_facturas
+      try {
+        var prevFacturas = JSON.parse(localStorage.getItem("afip_facturas") || "[]");
+        var newFactura = {
+          id: "FAC-" + Date.now(),
+          numeroComprobante: data.numeroComprobante,
+          tipoComprobante: data.tipoComprobante || "C",
+          puntoVenta: puntoVenta || "2",
+          cae: data.cae,
+          vencimientoCAE: data.vencimientoCAE,
+          monto: totalMonto,
+          fechaEmision: data.fechaEmision || fechaEmision,
+          concepto: concepto,
+          clienteCuit: cleanCuit,
+          clienteRazonSocial: clientName,
+          clienteCondicionIVA: condicionIVA,
+          items: items,
+          pagado: true // por defecto pagado o según corresponda
+        };
+        prevFacturas.unshift(newFactura);
+        localStorage.setItem("afip_facturas", JSON.stringify(prevFacturas));
+      } catch(eFac){
+        console.error("Error al guardar factura emitida:", eFac);
+      }
+
+      onSuccess({
+        numeroComprobante: data.numeroComprobante,
+        cae: data.cae,
+        vencimientoCAE: data.vencimientoCAE,
+        montoFacturado: totalMonto
+      });
+    } catch(err){
+      setError(err.message || "Error al facturar con AFIP. Asegúrese de que el servidor local (server.js) esté encendido.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  var inpS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10};
+  var lblS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:4};
+
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(8px)",padding:10,animation:"popupBackdropIn .22s ease forwards"}},
+    h("div",{className:"mbox",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(560px,100%)",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 70px rgba(0,0,0,.35)",animation:"popupSlideIn .35s cubic-bezier(0.16,1,0.3,1) forwards"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
+        h("div",null,
+          h("h3",{className:"title-font",style:{color:T.text,fontSize:16,fontWeight:700,margin:0}},"Facturar con AFIP (ARCA)"),
+          h("p",{style:{color:T.textMid,fontSize:12,margin:"2px 0 0"}},"Emisión de comprobante electrónico")
+        ),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
+      ),
+
+      savedClients.length > 0 && h("div",{style:{marginBottom:10}},
+        h("label",{style:lblS},"SELECCIONAR CLIENTE GUARDADO"),
+        h("select",{value:selectedClientIdx,onChange:handleSelectClient,style:inpS},
+          h("option",{value:""},"-- Seleccionar o completar manualmente --"),
+          savedClients.map(function(c,i){
+            return h("option",{key:i,value:i},c.razonSocial + " (" + c.cuit + ")");
+          })
+        )
+      ),
+
+      h("div",{style:{display:"flex",gap:10}},
+        h("div",{style:{flex:1}},
+          h("label",{style:lblS},"CONDICION FRENTE AL IVA"),
+          h("select",{value:condicionIVA,onChange:function(e){setCondicionIVA(e.target.value);},style:inpS},
+            h("option",{value:"Responsable Inscripto"},"Responsable Inscripto"),
+            h("option",{value:"Monotributo"},"Monotributo"),
+            h("option",{value:"Exento"},"Exento"),
+            h("option",{value:"Consumidor Final"},"Consumidor Final")
+          )
+        ),
+        h("div",{style:{flex:1.2,position:"relative"}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h("label",{style:lblS},"CUIT / CUIL"),
+            fetchingCuit && h("span",{style:{fontSize:10,color:T.accent,fontWeight:600}},"Buscando en AFIP...")
+          ),
+          h("div",{style:{display:"flex",gap:4}},
+            h("input",{
+              value:cuit,
+              onChange:function(e){handleCuitChange(e.target.value);},
+              onBlur:function(){
+                var clean = cuit.replace(/\D/g, "");
+                if(clean.length >= 10) fetchCuitData(clean);
+              },
+              placeholder:"Ej. 27-28681547-8",
+              style:merge(inpS,{marginBottom:0})
+            }),
+            h("button",{
+              type:"button",
+              onClick:function(){
+                var clean = cuit.replace(/\D/g, "");
+                if(clean.length >= 10) fetchCuitData(clean);
+              },
+              style:{padding:"0 10px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,cursor:"pointer",fontSize:13,color:T.textMid},
+              title:"Consultar Padrón AFIP"
+            },"🔍")
+          ),
+          cuitMsg && h("div",{
+            style:{
+              fontSize:11,
+              fontWeight:600,
+              marginTop:4,
+              lineHeight:1.3,
+              color: cuitMsg.type === "success" ? "#16a34a" : (cuitMsg.type === "info" ? "#2563eb" : "#ef4444")
+            }
+          }, (cuitMsg.type === "success" ? "✅ " : (cuitMsg.type === "info" ? "⏳ " : "⚠️ ")) + cuitMsg.text)
+        )
+      ),
+
+      h("div",null,
+        h("label",{style:lblS},"RAZON SOCIAL / NOMBRE DEL CLIENTE"),
+        h("input",{value:razonSocial,onChange:function(e){setRazonSocial(e.target.value);},placeholder:"Ej. Juan Pérez (se autocompleta con CUIT)",style:inpS})
+      ),
+
+      h("div",{style:{display:"flex",gap:10}},
+        h("div",{style:{width:110}},
+          h("label",{style:lblS},"PTO VENTA"),
+          h("input",{value:puntoVenta,onChange:function(e){setPuntoVenta(e.target.value);},style:inpS})
+        ),
+        h("div",{style:{flex:1}},
+          h("label",{style:lblS},"FECHA DE EMISIÓN"),
+          h("input",{type:"date",value:fechaEmision,onChange:function(e){setFechaEmision(e.target.value);},style:inpS})
+        ),
+        h("div",{style:{flex:1}},
+          h("label",{style:lblS},"CONCEPTO (AFIP)"),
+          h("select",{value:concepto,onChange:function(e){setConcepto(e.target.value);},style:inpS},
+            h("option",{value:"1"},"Productos"),
+            h("option",{value:"2"},"Servicios"),
+            h("option",{value:"3"},"Productos y Servicios")
+          )
+        )
+      ),
+
+      /* Detalle de ítems / conceptos */
+      h("div",{style:{background:T.surfaceAlt,borderRadius:12,padding:12,marginBottom:12,border:"1px solid "+T.border}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+          h("label",{style:merge(lblS,{marginBottom:0})},"CONCEPTOS A FACTURAR"),
+          h("span",{style:{fontSize:12,fontWeight:700,color:T.accent}},"TOTAL: " + fmtMoney(totalMonto, "ARS"))
+        ),
+        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 70px 140px 24px",gap:4,marginBottom:4,paddingBottom:4,borderBottom:"1px solid "+T.border}},
+          ["Descripción","Cant.","Precio unitario",""].map(function(h2,i){ return h("span",{key:i,style:{fontSize:10,fontWeight:700,color:T.textSoft}},h2); })
+        ),
+        items.map(function(it, i){
+          return h("div",{key:it.id,style:{display:"grid",gridTemplateColumns:"1fr 70px 140px 24px",gap:4,alignItems:"center",marginBottom:6}},
+            h("input",{
+              type:"text",
+              value:it.descripcion,
+              onChange:function(e){updateItem(it.id, "descripcion", e.target.value);},
+              placeholder:"Descripción",
+              style:merge(inpS,{marginBottom:0})
+            }),
+            h("input",{
+              type:"number",
+              min:"1",
+              value:it.cantidad || 1,
+              onChange:function(e){updateItem(it.id, "cantidad", parseInt(e.target.value)||1);},
+              style:merge(inpS,{marginBottom:0,textAlign:"center",padding:"9px 6px"})
+            }),
+            h(MoneyInput,{
+              value:it.monto,
+              onChange:function(v){updateItem(it.id, "monto", v===""?0:v);},
+              style:merge(inpS,{marginBottom:0,fontWeight:700})
+            }),
+            items.length > 1 ? h("button",{
+              onClick:function(){removeItem(it.id);},
+              style:{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:16,padding:"0 2px",lineHeight:1,alignSelf:"center"}
+            },"x") : h("span",null)
+          );
+        }),
+        h("button",{
+          onClick:addItem,
+          style:{padding:"5px 10px",background:"transparent",border:"1px dashed "+T.borderMid,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:12,width:"100%",marginTop:4}
+        }, "+ Agregar otro ítem / concepto")
+      ),
+
+      error && h("div",{style:{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 12px",marginBottom:12,color:"#dc2626",fontSize:12,fontWeight:600}},error),
+
+      h("div",{style:{display:"flex",justifyContent:"flex-end",gap:8,marginTop:10,paddingTop:14,borderTop:"1px solid "+T.border}},
+        h("button",{onClick:onClose,disabled:loading,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
+        h("button",{
+          onClick:handleFacturar,
+          disabled:loading,
+          style:{padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",cursor:loading?"wait":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6,boxShadow:"0 4px 12px rgba(37,99,235,.25)"}
+        },
+          loading ? "Emitiendo CAE..." : "⚡ Emitir Factura AFIP (" + fmtMoney(totalMonto, "ARS") + ")"
+        )
+      )
+    )
+  );
+}
+
+/* --- ClientesTab --- */
+function ClientesTab(props){
+  var clS = useState(function(){
+    try { return JSON.parse(localStorage.getItem("afip_clientes") || "[]"); } catch(e){ return []; }
+  });
+  var clientes = clS[0]; var setClientes = clS[1];
+
+  var facS = useState(function(){
+    try { return JSON.parse(localStorage.getItem("afip_facturas") || "[]"); } catch(e){ return []; }
+  });
+  var facturas = facS[0]; var setFacturas = facS[1];
+
+  var qS = useState(""); var query = qS[0]; var setQuery = qS[1];
+  var selCliS = useState(null); var selectedCliente = selCliS[0]; var setSelectedCliente = selCliS[1];
+  var afipModalS = useState(null); var afipModal = afipModalS[0]; var setAfipModal = afipModalS[1];
+
+  // Alternar estado pagado/pendiente de una factura
+  function toggleFacturaPago(facturaId){
+    var updated = facturas.map(function(f){
+      if(f.id === facturaId){
+        return merge(f, { pagado: !f.pagado });
+      }
+      return f;
+    });
+    setFacturas(updated);
+    localStorage.setItem("afip_facturas", JSON.stringify(updated));
+  }
+
+  // Clientes filtrados por búsqueda
+  var filteredClientes = clientes.filter(function(c){
+    var term = query.toLowerCase();
+    return (c.razonSocial||"").toLowerCase().indexOf(term) >= 0 || (c.cuit||"").indexOf(term) >= 0;
+  });
+
+  var inpS={width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 14px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
+
+  return h("div",{className:"tab-content-wrap",style:{padding:18,maxWidth:1100,margin:"0 auto"}},
+    /* Encabezado */
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:12}},
+      h("div",null,
+        h("h2",{className:"title-font",style:{fontSize:22,margin:0,color:T.text}},"Clientes y Facturación AFIP / ARCA"),
+        h("p",{style:{color:T.textMid,fontSize:13,margin:"4px 0 0"}},"Directorio de clientes, datos impositivos y registro de comprobantes emitidos")
+      ),
+      h("button",{
+        onClick:function(){ setAfipModal({ monto: 0, conceptoStr: "Factura Directa" }); },
+        style:{padding:"9px 16px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:10,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 4px 14px rgba(37,99,235,.25)"}
+      },"⚡ Emitir Nueva Factura")
+    ),
+
+    /* Barra de búsqueda y métricas rápidas */
+    h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:18}},
+      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
+        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"TOTAL CLIENTES"),
+        h("div",{style:{fontSize:22,fontWeight:800,color:T.text}},clientes.length)
+      ),
+      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
+        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"FACTURAS EMITIDAS"),
+        h("div",{style:{fontSize:22,fontWeight:800,color:T.accent}},facturas.length)
+      ),
+      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
+        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"TOTAL FACTURADO"),
+        h("div",{style:{fontSize:20,fontWeight:800,color:"#10b981"}},fmtMoney(facturas.reduce(function(acc,f){ return acc + parseMoney(f.monto); }, 0), "ARS"))
+      )
+    ),
+
+    h("div",{style:{marginBottom:16}},
+      h("input",{
+        type:"text",
+        value:query,
+        onChange:function(e){setQuery(e.target.value);},
+        placeholder:"🔍 Buscar cliente por Razón Social o CUIT...",
+        style:inpS
+      })
+    ),
+
+    /* Vista principal: Tabla/Tarjetas de Clientes */
+    filteredClientes.length === 0
+      ? h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,padding:40,textAlign:"center",color:T.textSoft}},
+          h("div",{style:{fontSize:36,marginBottom:10}},"👥"),
+          h("p",{style:{margin:0,fontSize:14,fontWeight:600}},"No hay clientes registrados aún"),
+          h("p",{style:{margin:"4px 0 0",fontSize:12}},"Los clientes se guardan automáticamente al emitir facturas o al asociarlos a tus trabajos.")
+        )
+      : h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:14}},
+          filteredClientes.map(function(c, idx){
+            var cFacturas = facturas.filter(function(f){ return f.clienteCuit === c.cuit; });
+            var totalCliente = cFacturas.reduce(function(acc,f){ return acc + parseMoney(f.monto); }, 0);
+            var isSelected = selectedCliente && selectedCliente.cuit === c.cuit;
+
+            return h("div",{
+              key: c.cuit || idx,
+              style:{
+                background:T.surface,
+                border:"1px solid "+(isSelected ? T.accent : T.border),
+                borderRadius:14,
+                padding:16,
+                boxShadow:isSelected ? "0 8px 24px rgba(37,99,235,.15)" : "0 2px 8px rgba(0,0,0,.04)",
+                transition:"all .2s ease"
+              }
+            },
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}},
+                h("div",{style:{flex:1,minWidth:0}},
+                  h("h3",{style:{margin:0,fontSize:15,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},c.razonSocial),
+                  h("span",{style:{fontSize:12,color:T.textMid,fontWeight:600}},"CUIT: " + (c.cuit || "Sin CUIT"))
+                ),
+                h("span",{style:{padding:"3px 8px",borderRadius:6,background:T.surfaceAlt,border:"1px solid "+T.border,fontSize:10,fontWeight:700,color:T.textMid}},c.condicionIVA || "Consumidor Final")
+              ),
+
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderTop:"1px solid "+T.border,borderBottom:"1px solid "+T.border,marginBottom:12,fontSize:12}},
+                h("span",{style:{color:T.textSoft}},"Facturas: ", h("strong",{style:{color:T.text}},cFacturas.length)),
+                h("span",{style:{color:T.textSoft}},"Facturado: ", h("strong",{style:{color:"#10b981"}},fmtMoney(totalCliente, "ARS")))
+              ),
+
+              h("div",{style:{display:"flex",gap:8}},
+                h("button",{
+                  onClick:function(){ setSelectedCliente(isSelected ? null : c); },
+                  style:{flex:1,padding:"7px 10px",background:isSelected ? T.accent+"15" : T.surfaceAlt,border:"1px solid "+(isSelected ? T.accent : T.border),borderRadius:8,color:isSelected ? T.accent : T.textMid,fontSize:12,fontWeight:700,cursor:"pointer"}
+                }, isSelected ? "Ocultar Facturas" : "📄 Ver Facturas (" + cFacturas.length + ")"),
+                h("button",{
+                  onClick:function(){ setAfipModal({ monto: 0, defaultCliente: c, conceptoStr: "Factura a " + c.razonSocial }); },
+                  style:{padding:"7px 12px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,color:"#2563eb",fontSize:12,fontWeight:700,cursor:"pointer"}
+                },"⚡ Facturar")
+              )
+            );
+          })
+        ),
+
+    /* Detalle de facturas del cliente seleccionado */
+    selectedCliente && h("div",{style:{marginTop:24,background:T.surface,border:"1px solid "+T.accent,borderRadius:16,padding:20,boxShadow:"0 12px 30px rgba(0,0,0,.08)",animation:"slideIn .25s ease forwards"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
+        h("div",null,
+          h("h3",{className:"title-font",style:{margin:0,fontSize:16,color:T.text}},"Facturas emitidas a: " + selectedCliente.razonSocial),
+          h("span",{style:{fontSize:12,color:T.textMid}},"CUIT: " + selectedCliente.cuit + " | Condición: " + (selectedCliente.condicionIVA||"RI"))
+        ),
+        h("button",{onClick:function(){setSelectedCliente(null);},style:{background:"none",border:"none",color:T.textSoft,fontSize:20,cursor:"pointer"}},"✕")
+      ),
+
+      (function(){
+        var cFacturas = facturas.filter(function(f){ return f.clienteCuit === selectedCliente.cuit; });
+        if(cFacturas.length === 0){
+          return h("p",{style:{color:T.textSoft,fontSize:13,margin:0,padding:16,textAlign:"center"}},"No hay comprobantes emitidos registrados para este cliente.");
+        }
+        return h("div",{style:{overflowX:"auto"}},
+          h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12,textAlign:"left"}},
+            h("thead",null,
+              h("tr",{style:{borderBottom:"1px solid "+T.border,color:T.textSoft}},
+                ["Comprobante","CAE / Vto","Fecha Emisión","Monto","Estado Pago","Acciones"].map(function(th,i){
+                  return h("th",{key:i,style:{padding:"8px 10px",fontWeight:700}},th);
+                })
+              )
+            ),
+            h("tbody",null,
+              cFacturas.map(function(f){
+                return h("tr",{key:f.id,style:{borderBottom:"1px solid "+T.border}},
+                  h("td",{style:{padding:"10px",fontWeight:700,color:T.text}}, (f.tipoComprobante || "C") + " N° " + String(f.numeroComprobante||"").padStart(8, '0')),
+                  h("td",{style:{padding:"10px",color:T.textMid}},
+                    h("div",{style:{fontWeight:600}},"CAE: " + (f.cae || "-")),
+                    h("div",{style:{fontSize:11,color:T.textSoft}},"Vto: " + (f.vencimientoCAE || "-"))
+                  ),
+                  h("td",{style:{padding:"10px",color:T.textMid}},fmtFecha(f.fechaEmision)),
+                  h("td",{style:{padding:"10px",fontWeight:800,color:"#10b981"}},fmtMoney(f.monto, "ARS")),
+                  h("td",{style:{padding:"10px"}},
+                    h("button",{
+                      onClick:function(){ toggleFacturaPago(f.id); },
+                      style:{
+                        padding:"4px 10px",
+                        borderRadius:20,
+                        border:"none",
+                        background:f.pagado ? "#dcfce7" : "#fef3c7",
+                        color:f.pagado ? "#166534" : "#92400e",
+                        fontWeight:700,
+                        fontSize:11,
+                        cursor:"pointer"
+                      }
+                    }, f.pagado ? "✓ Pagada" : "⏳ Pendiente")
+                  ),
+                  h("td",{style:{padding:"10px"}},
+                    h("span",{style:{color:T.textSoft,fontSize:11}},"Pto Vta " + (f.puntoVenta||"2"))
+                  )
+                );
+              })
+            )
+          )
+        );
+      })()
+    ),
+
+    afipModal && h(ClientAfipModal,{
+      monto: afipModal.monto || 0,
+      conceptoStr: afipModal.conceptoStr || "Factura AFIP",
+      defaultCliente: afipModal.defaultCliente,
+      onClose: function(){ setAfipModal(null); },
+      onSuccess: function(resData){
+        setAfipModal(null);
+        // Recargar clientes y facturas desde localStorage
+        try { setClientes(JSON.parse(localStorage.getItem("afip_clientes")||"[]")); }catch(e){}
+        try { setFacturas(JSON.parse(localStorage.getItem("afip_facturas")||"[]")); }catch(e){}
+      }
+    })
+  );
+}
+
+/* --- CuotasModal --- */
+function CuotasModal(props){
+  var trabajo=props.trabajo;var onSave=props.onSave;var onClose=props.onClose;
+  var montoBase=parseMoney(trabajo.monto);
+
+  var antS=useState(parseMoney(trabajo.anticipo));var anticipo=antS[0];var setAnticipo=antS[1];
+  var faS=useState(trabajo.facturaAnticipo||"");var factAnt=faS[0];var setFactAnt=faS[1];
+  var apS=useState(!!trabajo.anticipoPagado);var antPag=apS[0];var setAntPag=apS[1];
+  var ppS=useState(!!trabajo.pagoPagado);var pagoPagado=ppS[0];var setPagoPagado=ppS[1];
+  var fpS=useState(trabajo.facturaFull||"");var factFull=fpS[0];var setFactFull=fpS[1];
+
+  var afipS=useState(null);var afipModal=afipS[0];var setAfipModal=afipS[1];
+
+  var cS=useState(function(){
+    if(trabajo.cuotas&&trabajo.cuotas.length) return trabajo.cuotas.map(function(c){return merge(c,{monto:parseMoney(c.monto)});});
+    var n=Math.max(1,parseInt(trabajo.cantCuotas)||1);
+    var saldo=montoBase-parseMoney(trabajo.anticipo);
+    return Array.from({length:n},function(_,i){
+      return {id:i+1,fecha:cuotaDate(trabajo.fecha||todayStr(),i),indefinida:false,monto:Math.round(saldo/n),pagada:false,nroFactura:"",fechaPago:""};
+    });
+  });
+  var cuotas=cS[0];var setCuotas=cS[1];
+
+  var noAnticipo=anticipo===0||anticipo==="";
+
+  function recalc(ant){
+    var saldo=montoBase-ant;var n=cuotas.length;
+    setCuotas(cuotas.map(function(c){return merge(c,{monto:n>0?Math.round(saldo/n):0});}));
+  }
+  function handleAnt(val){ var v=val===""?0:parseMoney(val); setAnticipo(v); recalc(v); }
+  function addCuota(){
+    var last=cuotas[cuotas.length-1];
+    var newF=(last&&!last.indefinida)?addMonths(last.fecha,1):cuotaDate(todayStr(),0);
+    setCuotas(cuotas.concat([{id:Date.now(),pagada:false,indefinida:false,monto:0,nroFactura:"",fecha:newF,fechaPago:""}]));
+  }
+  function remCuota(id){ setCuotas(cuotas.filter(function(c){return c.id!==id;})); }
+  function updCuota(id,field,val){ setCuotas(cuotas.map(function(c){return c.id===id?setKey(c,field,val):c;})); }
+
+  var total=cuotas.reduce(function(s,c){return s+parseMoney(c.monto);},0);
+  var saldoRef=montoBase-anticipo;
+  var diff=total-saldoRef;
+  var ib={background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"7px 8px",color:T.text,fontSize:12,outline:"none",width:"100%",fontFamily:"inherit"};
+
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.70)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(8px)",padding:10,animation:"popupBackdropIn .22s ease forwards"}},
+    h("div",{className:"mbox",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(640px,100%)",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 70px rgba(0,0,0,.30)",animation:"popupSlideIn .35s cubic-bezier(0.16,1,0.3,1) forwards"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+        h("div",null,
+          h("h3",{style:{color:T.text,fontSize:16,fontWeight:700,margin:0,fontFamily:"'DM Serif Display',serif"}},"Gestión de Pagos"),
+          h("p",{style:{color:T.textMid,fontSize:12,margin:"3px 0 0"}},trabajo.obra)
+        ),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
+      ),
+      h("div",{style:{background:T.accentBg,borderRadius:10,padding:"10px 14px",marginBottom:14,border:"1px solid #bfdbfe",display:"flex",gap:16,flexWrap:"wrap"}},
+        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"PRESUPUESTO TOTAL"),h("p",{style:{margin:"2px 0 0",color:T.text,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(montoBase,trabajo.moneda))),
+        anticipo>0&&h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"ANTICIPO"),h("p",{style:{margin:"2px 0 0",color:"#d97706",fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(anticipo,trabajo.moneda))),
+        h("div",null,h("p",{style:{margin:0,color:T.textSoft,fontSize:10,fontWeight:700}},"SALDO EN CUOTAS"),h("p",{style:{margin:"2px 0 0",color:T.accent,fontSize:15,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(saldoRef,trabajo.moneda))),
+        trabajo.moneda==="USD"&&h("div",null,h("span",{style:{padding:"2px 8px",borderRadius:6,background:"#fefce8",color:"#854d0e",fontSize:11,fontWeight:700,border:"1px solid #fde047"}},"Dólares U$S"))
+      ),
+      montoBase>0&&h("div",{style:{background:"#fffbeb",borderRadius:10,padding:"12px 14px",marginBottom:14,border:"1px solid #fde68a"}},
+        h("p",{style:{color:"#92400e",fontSize:10,fontWeight:700,letterSpacing:".07em",margin:"0 0 10px"}},"ANTICIPO"),
+        h("div",{style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}},
+          h("div",{style:{flex:"1 1 120px"}},
+            h("p",{style:{color:T.textSoft,fontSize:10,fontWeight:700,margin:"0 0 3px"}},"MONTO ANTICIPO ($)"),
+            h(MoneyInput,{value:anticipo,onChange:handleAnt,style:merge(ib,{fontWeight:700,color:"#d97706"})})
+          ),
+          h("div",{style:{flex:"1 1 140px"}},
+            h("p",{style:{color:T.textSoft,fontSize:10,fontWeight:700,margin:"0 0 3px"}},"N FACTURA ANTICIPO"),
+            h("div",{style:{display:"flex",gap:4}},
+              h("input",{type:"text",value:factAnt,onChange:function(e){setFactAnt(e.target.value);},placeholder:"N factura",style:ib}),
+              h("button",{
+                onClick:function(){
+                  setAfipModal({
+                    monto: anticipo,
+                    conceptoStr: "Anticipo: " + trabajo.obra,
+                    onSuccess: function(res){
+                      setFactAnt("FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
+                      setAntPag(true);
+                      setAfipModal(null);
+                    }
+                  });
+                },
+                style:{padding:"0 8px",height:31,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}
+              },"⚡ AFIP")
+            )
+          ),
+          h("button",{
+            onClick:function(){setAntPag(!antPag);},
+            style:{
+              padding:"6px 12px",borderRadius:8,border:"none",cursor:"pointer",
+              fontSize:11,fontWeight:700,flexShrink:0,alignSelf:"flex-end",
+              background:antPag?"#dcfce7":"#fef9ec",
+              color:antPag?"#15803d":"#b45309",
+              whiteSpace:"nowrap"
+            }
+          }, antPag?"\u2713 COBRADO":"PENDIENTE")
+        ),
+        noAnticipo&&h("p",{style:{color:T.textSoft,fontSize:11,margin:"8px 0 0",fontStyle:"italic"}},"Sin anticipo: el trabajo se cobra en cuotas o en un único pago.")
+      ),
+      noAnticipo&&h("div",{style:{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:14,border:"1px solid #bbf7d0"}},
+        h("p",{style:{color:"#166534",fontSize:10,fontWeight:700,letterSpacing:".07em",margin:"0 0 8px"}},"PAGO UNICO (sin anticipo)"),
+        h("div",{style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}},
+          h("div",{style:{flex:"1 1 140px"}},
+            h("p",{style:{color:T.textSoft,fontSize:10,fontWeight:700,margin:"0 0 3px"}},"N FACTURA"),
+            h("div",{style:{display:"flex",gap:4}},
+              h("input",{type:"text",value:factFull,onChange:function(e){setFactFull(e.target.value);},placeholder:"N factura",style:ib}),
+              h("button",{
+                onClick:function(){
+                  setAfipModal({
+                    monto: saldoRef,
+                    conceptoStr: "Pago Único: " + trabajo.obra,
+                    onSuccess: function(res){
+                      setFactFull("FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
+                      setPagoPagado(true);
+                      setAfipModal(null);
+                    }
+                  });
+                },
+                style:{padding:"0 8px",height:31,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}
+              },"⚡ AFIP")
+            )
+          ),
+          h("label",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,color:T.textMid,flexShrink:0}},
+            h("input",{type:"checkbox",checked:pagoPagado,onChange:function(e){setPagoPagado(e.target.checked);},style:{width:15,height:15,cursor:"pointer"}}),
+            "Cobrado"
+          )
+        )
+      ),
+      h("p",{style:{color:T.textMid,fontSize:10,fontWeight:700,letterSpacing:".07em",margin:"0 0 7px"}},"CUOTAS"),
+      h("div",{className:"mgrid mgrid-hdr",style:{display:"grid",gridTemplateColumns:"18px 1fr 100px 100px 65px 22px",gap:5,paddingBottom:5,borderBottom:"1px solid "+T.border,marginBottom:7}},
+        ["","Fecha","Monto","N Factura","Estado",""].map(function(hdr,i){return h("span",{key:i,style:{color:T.textSoft,fontSize:10,fontWeight:700}},hdr);})
+      ),
+      cuotas.map(function(c,i){
+        return h("div",{key:c.id,className:"mgrid",style:{display:"grid",gridTemplateColumns:"18px 1fr 100px 100px 65px 22px",gap:5,alignItems:"center",marginBottom:7}},
+          h("div",{className:"mgrid-row1"},
+            h("span",{style:{color:T.textSoft,fontSize:11,textAlign:"right",minWidth:16}},i+1),
+            h("div",{style:{display:"flex",gap:4,alignItems:"center",flex:1}},
+              c.indefinida
+                ?h("span",{style:{flex:1,padding:"6px 8px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,fontSize:12,color:T.textMid}},"Indefinida")
+                :h("input",{type:"date",value:c.fecha,onChange:function(e){updCuota(c.id,"fecha",e.target.value);},style:{flex:1,background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"6px 8px",color:T.text,fontSize:12,outline:"none"}}),
+              h("label",{style:{display:"flex",alignItems:"center",gap:2,cursor:"pointer",fontSize:10,color:T.textSoft,whiteSpace:"nowrap"}},
+                h("input",{type:"checkbox",checked:!!c.indefinida,onChange:function(e){updCuota(c.id,"indefinida",e.target.checked);},style:{cursor:"pointer"}}),"Indef")
+            )
+          ),
+          h("div",{className:"mgrid-row2"},
+            h("div",{style:{position:"relative",flex:1}},
+              trabajo.moneda==="USD"&&h("span",{style:{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",color:"#854d0e",fontSize:10,fontWeight:700,pointerEvents:"none",zIndex:1}},"U$S"),
+              h(MoneyInput,{value:c.monto,onChange:function(v){updCuota(c.id,"monto",v===""?0:v);},style:merge(ib,{paddingLeft:trabajo.moneda==="USD"?28:8,marginBottom:0})})
+            ),
+            h("div",{style:{display:"flex",gap:2,flex:1}},
+              h("input",{type:"text",value:c.nroFactura||"",onChange:function(e){updCuota(c.id,"nroFactura",e.target.value);},placeholder:"N factura",style:merge(ib,{marginBottom:0,flex:1})}),
+              h("button",{
+                onClick:function(){
+                  setAfipModal({
+                    monto: c.monto,
+                    conceptoStr: "Cuota #" + (i+1) + ": " + trabajo.obra,
+                    onSuccess: function(res){
+                      updCuota(c.id, "nroFactura", "FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
+                      updCuota(c.id, "pagada", true);
+                      setAfipModal(null);
+                    }
+                  });
+                },
+                style:{padding:"0 4px",height:28,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:6,color:"white",fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",alignSelf:"center"}
+              },"⚡")
+            ),
+            h("button",{onClick:function(){updCuota(c.id,"pagada",!c.pagada);},style:{padding:"6px 9px",borderRadius:8,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309",whiteSpace:"nowrap",flexShrink:0}},c.pagada?"PAGADA":"PEND"),
+            h("button",{onClick:function(){remCuota(c.id);},style:{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:17,padding:"0 4px",lineHeight:1,flexShrink:0}},"x")
+          )
+        );
+      }),
+      h("button",{onClick:addCuota,style:{width:"100%",padding:"7px",background:"transparent",border:"1px dashed "+T.borderMid,borderRadius:8,color:T.textMid,cursor:"pointer",marginTop:4,fontSize:13}},
+        "+ Agregar cuota"
+      ),
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14,paddingTop:14,borderTop:"1px solid "+T.border,flexWrap:"wrap",gap:8}},
+        h("span",{style:{fontSize:13,fontWeight:600,color:Math.abs(diff)<2?"#16a34a":diff>0?"#dc2626":"#d97706"}},
+          "Cuotas: "+fmtMoney(total,trabajo.moneda)+(Math.abs(diff)<2?" OK":diff>0?" (excede "+fmtMoney(diff,trabajo.moneda)+")": " (faltan "+fmtMoney(-diff,trabajo.moneda)+")")
+        ),
+        h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+          h("button",{
+            onClick:function(){
+              var tTemp=merge(trabajo,{cuotas:cuotas,anticipo:anticipo,facturaAnticipo:factAnt,anticipoPagado:antPag,pagoPagado:pagoPagado,facturaFull:factFull});
+              printHTML(buildEstadoCuentasHTML(tTemp,calcTotals),"estado-"+trabajo.obra);
+            },
+            style:{padding:"8px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}
+          },
+            h("span",null,"PDF"),
+            h("span",{style:{fontSize:11,opacity:.8}},"Estado de cuenta")
+          ),
+          h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
+          h("button",{onClick:function(){playCashRegisterSound();onSave(cuotas,anticipo,factAnt,antPag,pagoPagado,factFull);},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar")
+        )
+      ),
+
+      afipModal && h(ClientAfipModal, {
+        monto: afipModal.monto,
+        conceptoStr: afipModal.conceptoStr,
+        onSuccess: afipModal.onSuccess,
+        onClose: function(){ setAfipModal(null); }
+      })
+    )
+  );
+}
+
+/* --- EditObraModal --- */
+function EditObraModal(props){
+  var trabajo=props.trabajo; var onSave=props.onSave; var onClose=props.onClose;
+  var [obra, setObra] = useState(trabajo.obra||"");
+  var [descripcion, setDescripcion] = useState(trabajo.descripcion||"");
+  var [monto, setMonto] = useState(parseMoney(trabajo.monto));
+  var [fecha, setFecha] = useState(normFecha(trabajo.fecha));
+  var [moneda, setMoneda] = useState(trabajo.moneda||"ARS");
+  var [estado, setEstado] = useState(trabajo.estado||"pendiente");
+  var [presupuestoUrl, setPresupuestoUrl] = useState(trabajo.presupuestoUrl||"");
+
+  var ib={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10};
+  var lS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:5};
+
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.70)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(8px)",padding:10,animation:"popupBackdropIn .22s ease forwards"}},
+    h("div",{className:"mbox",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(450px,100%)",boxShadow:"0 24px 70px rgba(0,0,0,.30)",animation:"popupSlideIn .35s cubic-bezier(0.16,1,0.3,1) forwards"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+        h("h3",{className:"title-font",style:{color:T.text,fontSize:16,fontWeight:700,margin:0}},"Editar Obra"),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
+      ),
+      h("div",null,
+        h("div",null,h("label",{style:lS},"OBRA"),h("input",{value:obra,onChange:function(e){setObra(e.target.value);},style:ib})),
+        h("div",null,h("label",{style:lS},"DESCRIPCION"),h("textarea",{value:descripcion,onChange:function(e){setDescripcion(e.target.value);},rows:2,style:merge(ib,{resize:"vertical"})})),
+        h("div",null,h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:presupuestoUrl,onChange:function(e){setPresupuestoUrl(e.target.value);},placeholder:"https://www.dropbox.com/... o Google Drive link",style:ib})),
+        h("div",null,h("label",{style:lS},"FECHA DE REGISTRO"),h("input",{type:"date",value:fecha,onChange:function(e){setFecha(e.target.value);},style:ib})),
+        h("div",null,h("label",{style:lS},"MONEDA"),
+          h("select",{value:moneda,onChange:function(e){setMoneda(e.target.value);},style:ib},
+            h("option",{value:"ARS"},"ARS ($ Pesos)"),
+            h("option",{value:"USD"},"USD (U$S Dólares)")
+          )
+        ),
+        h("div",null,h("label",{style:lS},"IMPORTE TOTAL"),h(MoneyInput,{value:monto,onChange:function(v){setMonto(v);},style:ib})),
+        h("div",null,h("label",{style:lS},"ESTADO"),
+          h("select",{value:estado,onChange:function(e){setEstado(e.target.value);},style:ib},
+            Object.keys(STATUS).map(function(k){return h("option",{key:k,value:k},STATUS[k].label);})
+          )
+        )
+      ),
+      h("div",{style:{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid "+T.border}},
+        h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
+        h("button",{onClick:function(){onSave({obra:obra,descripcion:descripcion,monto:monto,fecha:fecha,moneda:moneda,estado:estado,presupuestoUrl:presupuestoUrl});},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar cambios")
+      )
+    )
+  );
+}
+
+/* --- ObraPickerModal: elegir a qué obra asignar el enlace de Dropbox --- */
+function ObraPickerModal(props){
+  var link=props.link; var fileName=props.fileName; var trabajos=props.trabajos;
+  var onPick=props.onPick; var onClose=props.onClose;
+  var qS=useState(""); var q=qS[0]; var setQ=qS[1];
+
+  var activos=(trabajos||[]).filter(function(t){return !esArchivado(t);});
+  var filtrados=q.trim()
+    ? activos.filter(function(t){
+        var s=((t.obra||"")+" "+(t.descripcion||"")).toLowerCase();
+        return s.indexOf(q.trim().toLowerCase())!==-1;
+      })
+    : activos;
+
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.70)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,backdropFilter:"blur(8px)",padding:10,animation:"popupBackdropIn .22s ease forwards"}},
+    h("div",{className:"mbox",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(460px,100%)",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 70px rgba(0,0,0,.30)",animation:"popupSlideIn .35s cubic-bezier(0.16,1,0.3,1) forwards"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+        h("h3",{className:"title-font",style:{color:T.text,fontSize:16,fontWeight:700,margin:0}},"Asignar presupuesto"),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
+      ),
+      h("div",{style:{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"9px 12px",marginBottom:14,fontSize:12,color:"#1d4ed8",wordBreak:"break-all"}},
+        h("p",{style:{margin:0,fontWeight:700}},"📎 "+(fileName||"Archivo de Dropbox")),
+        h("p",{style:{margin:"3px 0 0",color:"#2563eb"}},link)
+      ),
+      h("p",{style:{margin:"0 0 8px",color:T.textMid,fontSize:12,fontWeight:600}},"Elegí la obra a la que corresponde este presupuesto:"),
+      h("input",{type:"text",value:q,onChange:function(e){setQ(e.target.value);},placeholder:"Buscar obra...",style:{width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"9px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10}}),
+      h("div",{style:{overflowY:"auto",flex:1,border:"1px solid "+T.border,borderRadius:10}},
+        filtrados.length===0
+          ? h("p",{style:{padding:14,color:T.textSoft,fontSize:12,textAlign:"center"}},"Sin obras que coincidan")
+          : filtrados.map(function(t,i){
+              return h("button",{
+                key:t.id,
+                onClick:function(){onPick(t.id);},
+                style:{width:"100%",textAlign:"left",display:"flex",flexDirection:"column",gap:2,padding:"10px 13px",background:"none",border:"none",borderBottom:i<filtrados.length-1?"1px solid "+T.border:"none",cursor:"pointer",fontFamily:"inherit"}
+              },
+                h("span",{style:{fontWeight:700,fontSize:13,color:T.text}},t.obra||"(sin nombre)"),
+                h("span",{style:{fontSize:11,color:T.textSoft}},(t.descripcion||"").slice(0,60)+(t.presupuestoUrl?" · ya tiene presupuesto (se reemplazará)":""))
+              );
+            })
+      ),
+      h("div",{style:{display:"flex",justifyContent:"flex-end",marginTop:14,paddingTop:14,borderTop:"1px solid "+T.border}},
+        h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar")
+      )
+    )
+  );
+}
+
+/* --- TrabajoCard --- */
+function TrabajoCard(props){
+  var t=props.t;var onDelete=props.onDelete;var onStatus=props.onStatus;
+  var onCuotas=props.onCuotas;var onEdit=props.onEdit;var saving=props.saving;
+  var hideTitle=props.hideTitle; var onViewPdf=props.onViewPdf;
+  var oS=useState(false);var open=oS[0];var setOpen=oS[1];
+  var st=STATUS[t.estado]||STATUS.pendiente;
+  var tots=calcTotals(t);
+  var monto=tots.monto;var antici=tots.anticipo;var cobrado=tots.cobrado;var pendiente=tots.pendiente;
+  var cpag=(t.cuotas||[]).filter(function(c){return c.pagada;}).length;
+  var ctot=(t.cuotas||[]).length;
+  var archivado=esArchivado(t);
+
+  return h("div",{style:{background:T.surface,border:"1px solid "+(archivado?"#cbd5e1":T.border),borderRadius:14,marginBottom:hideTitle?6:10,marginLeft:hideTitle?28:0,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.05)",opacity:saving?.65:1,transition:"opacity .2s"}},
+    h("div",{onClick:function(){setOpen(function(o){return !o;});},style:{display:"flex",alignItems:"stretch",cursor:"pointer",userSelect:"none"}},
+      h("div",{style:{width:hideTitle?4:6,background:archivado?"#94a3b8":st.dot,flexShrink:0,borderRadius:"14px 0 0 14px"}}),
+      h("div",{style:{flex:1,display:"flex",alignItems:"center",gap:hideTitle?8:10,padding:hideTitle?"6px 11px":"11px 13px",minWidth:0}},
+        h("div",{style:{width:hideTitle?26:34,height:hideTitle?26:34,borderRadius:hideTitle?7:9,background:archivado?"#f1f5f9":st.bg,border:"1.5px solid "+(archivado?"#cbd5e1":st.color+"55"),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
+          h("div",{style:{width:hideTitle?9:13,height:hideTitle?9:13,borderRadius:"50%",background:archivado?"#94a3b8":st.dot,boxShadow:"0 0 5px "+(archivado?"#94a3b8":st.dot)+"88"}})
+        ),
+        h("div",{style:{flex:1,minWidth:0}},
+          h("div",{style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}},
+            !hideTitle&&h("span",{className:"title-font",style:{fontWeight:700,color:archivado?T.textMid:T.text,fontSize:14}},t.obra||""),
+            hideTitle&&t.descripcion&&h("span",{style:{fontWeight:600,color:archivado?T.textMid:T.text,fontSize:10.5,fontFamily:"'DM Sans',sans-serif"}},t.descripcion.slice(0,40)+(t.descripcion.length>40?"...":"")),
+            h("span",{style:{padding:"1px 7px",borderRadius:20,background:archivado?"#f1f5f9":st.bg,color:archivado?T.textSoft:st.text,fontSize:10,fontWeight:700,border:"1px solid "+(archivado?"#cbd5e1":st.color+"44"),whiteSpace:"nowrap"}},archivado?"Archivado":st.label),
+            t.moneda==="USD"&&h("span",{style:{padding:"1px 7px",borderRadius:20,background:"#fefce8",color:"#854d0e",fontSize:10,fontWeight:700,border:"1px solid #fde047",whiteSpace:"nowrap"}},"U$S"),
+            t.presupuestoUrl&&h("button",{
+              onClick:function(e){ e.stopPropagation(); onViewPdf&&onViewPdf(t.presupuestoUrl, t.obra); },
+              style:{padding:"2px 8px",borderRadius:12,background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700,border:"1px solid #bfdbfe",cursor:"pointer",display:"flex",alignItems:"center",gap:4}
+            }, "📄 Presupuesto PDF")
+          ),
+          h("p",{style:{margin:(hideTitle?"0":"2px 0 0"),color:T.textSoft,fontSize:hideTitle?10:11}},
+            fmtFecha(t.fecha)+(!hideTitle&&t.descripcion?" - "+t.descripcion.slice(0,50)+(t.descripcion.length>50?"...":""):"")
+          ),
+          h("div",{className:"qmobile"},
+            h("div",{className:"qmobile-row"},
+              h("span",{style:{fontSize:11,color:T.textSoft,fontWeight:600}},"TOTAL: "+fmtMoney(monto,t.moneda)),
+              h("span",{style:{fontSize:11,color:"#16a34a",fontWeight:600}},"COBRADO: "+fmtMoney(cobrado,t.moneda))
+            ),
+            h("div",{className:"qmobile-row"},
+              h("span",{style:{fontSize:12,color:pendiente>0?"#dc2626":"#16a34a",fontWeight:700,fontVariantNumeric:"tabular-nums"}},"PEND: "+fmtMoney(pendiente,t.moneda)),
+              ctot>0&&h("span",{style:{fontSize:11,color:T.textMid,fontWeight:600}},"CUOTAS: "+cpag+"/"+ctot)
+            )
+          )
+        ),
+        h("div",{className:"qmoney"},
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"TOTAL"),h("p",{style:{margin:0,color:T.text,fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(monto,t.moneda))),
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"COBRADO"),h("p",{style:{margin:0,color:"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(cobrado,t.moneda))),
+          h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"PENDIENTE"),h("p",{style:{margin:0,color:pendiente>0?"#dc2626":"#16a34a",fontSize:13,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(pendiente,t.moneda))),
+          ctot>0&&h("div",{style:{textAlign:"right"}},h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:600}},"CUOTAS"),h("p",{style:{margin:0,color:T.textMid,fontSize:13,fontWeight:700}},cpag+"/"+ctot))
+        ),
+        h("span",{style:{color:T.textSoft,fontSize:11,transition:"transform .25s",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)",flexShrink:0,marginLeft:4}},"v")
+      )
+    ),
+    open&&h("div",{style:{borderTop:"1px solid "+T.border,padding:"13px 14px 15px",animation:"slideIn .2s ease-out"}},
+      h("div",{className:"fgrid",style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7,marginBottom:12}},
+        [["Total",fmt(monto),T.text],["Anticipo",fmt(antici)+(t.anticipoPagado?"":" pend"),"#d97706"],["Saldo cuotas",fmt(tots.saldoCuotas),T.accent],["Cobrado",fmt(cobrado),"#16a34a"],["Pendiente",fmt(pendiente),pendiente>0?"#dc2626":"#16a34a"]].map(function(item){
+          var sym=(t.moneda==="USD")?"U$S ":"$ ";
+          return h("div",{key:item[0],style:{background:T.surfaceAlt,borderRadius:8,padding:"7px 9px",border:"1px solid "+T.border}},
+            h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:700,letterSpacing:".05em"}},item[0].toUpperCase()),
+            h("p",{style:{margin:"2px 0 0",color:item[2],fontSize:12,fontWeight:700,fontVariantNumeric:"tabular-nums"}},sym+item[1])
+          );
+        }),
+        ctot>0&&h("div",{style:{background:T.surfaceAlt,borderRadius:8,padding:"7px 9px",border:"1px solid "+T.border}},
+          h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:700,letterSpacing:".05em"}},"CUOTAS"),
+          h("p",{style:{margin:"2px 0 0",color:T.textMid,fontSize:12,fontWeight:700}},cpag+"/"+ctot)
+        )
+      ),
+      antici>0&&h("div",{style:{background:"#fffbeb",borderRadius:8,padding:"7px 11px",marginBottom:10,border:"1px solid #fde68a",fontSize:12,display:"flex",gap:14,flexWrap:"wrap"}},
+        h("span",{style:{color:"#92400e"}},"Anticipo: "+(t.moneda==="USD"?"U$S ":"$ ")+fmt(antici)+" "+(t.anticipoPagado?"Cobrado":"Pendiente")),
+        t.facturaAnticipo&&h("span",{style:{color:"#b45309"}},"Fac: "+t.facturaAnticipo)
+      ),
+      antici===0&&t.pagoPagado&&h("div",{style:{background:"#f0fdf4",borderRadius:8,padding:"7px 11px",marginBottom:10,border:"1px solid #bbf7d0",fontSize:12,display:"flex",gap:14,flexWrap:"wrap"}},
+        h("span",{style:{color:"#166534"}},"Pago único: Cobrado"),
+        t.facturaFull&&h("span",{style:{color:"#15803d"}},"Fac: "+t.facturaFull)
+      ),
+      ctot>0&&h("div",{style:{background:T.surfaceAlt,borderRadius:10,padding:"9px 12px",marginBottom:12,border:"1px solid "+T.border}},
+        h("p",{style:{margin:"0 0 7px",color:T.textMid,fontSize:10,fontWeight:700,letterSpacing:".06em"}},"CUOTAS"),
+        (t.cuotas||[]).map(function(c,i){
+          return h("div",{key:c.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:i<ctot-1?"1px dashed "+T.border:"none",flexWrap:"wrap",gap:5}},
+            h("span",{style:{color:T.textMid,fontSize:12}},"Cuota "+(i+1)+" - "+(c.indefinida?"Indefinida":fmtFecha(c.fecha))+(c.nroFactura?" - Fac:"+c.nroFactura:"")),
+            h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+              h("span",{style:{color:T.text,fontWeight:600,fontSize:12,fontVariantNumeric:"tabular-nums"}},(t.moneda==="USD"?"U$S ":"$ ")+fmt(c.monto)),
+              h("span",{style:{padding:"1px 7px",borderRadius:10,fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309"}},c.pagada?"PAGADA":"PEND")
+            )
+          );
+        })
+      ),
+      h("div",{style:{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}},
+        h("select",{value:t.estado,onChange:function(e){onStatus(t.id,e.target.value);},style:{padding:"7px 9px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,fontSize:12,cursor:"pointer",outline:"none",fontFamily:"inherit"}},
+          Object.keys(STATUS).map(function(k){return h("option",{key:k,value:k},STATUS[k].label);})
+        ),
+        h("button",{onClick:function(){onCuotas(t);},style:{padding:"7px 13px",background:T.accentBg,border:"1px solid #bfdbfe",borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontWeight:600}},"Gestionar pagos"),
+        h("button",{onClick:function(){onEdit(t);},style:{padding:"7px 13px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,color:"#2563eb",fontSize:12,cursor:"pointer",fontWeight:600}},"Editar obra"),
+        t.presupuestoUrl&&h("button",{onClick:function(){ onViewPdf&&onViewPdf(t.presupuestoUrl, t.obra); },style:{padding:"7px 13px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,color:"#15803d",fontSize:12,cursor:"pointer",fontWeight:600}},"📄 Ver Presupuesto"),
+        h("button",{onClick:function(){onDelete(t.id);},style:{marginLeft:"auto",padding:"7px 11px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,color:"#dc2626",fontSize:12,cursor:"pointer"}},"Eliminar")
+      )
+    )
+  );
+}
+
+/* --- Balance Tab --- */
+function BalanceTab(props){
+  var trabajos=props.trabajos;
+  var defFin=addDays(todayStr(),-30);
+  var dsS=useState(defFin);var dateStart=dsS[0];var setDateStart=dsS[1];
+  var deS=useState(todayStr());var dateEnd=deS[0];var setDateEnd=deS[1];
+  var selS=useState(null);var selObra=selS[0];var setSelObra=selS[1];
+  var monS=useState("ARS");var monFilter=monS[0];var setMonFilter=monS[1];
+  var hayUSDbal=useMemo(function(){return trabajos.some(function(t){return t.moneda==="USD";});},[trabajos]);
+  var monSym = monFilter==="USD" ? "U$S " : "$ ";
+
+  /* Graph control parameters */
+  var [chartType, setChartType] = useState("doughnut"); // doughnut, bar, line
+  var [groupBy, setGroupBy] = useState("obra"); // obra, tipo, mes, barrio
+
+  /* Filtered works depending on selected status */
+  var filteredWorksForBalance = useMemo(function(){
+    return trabajos;
+  }, [trabajos]);
+
+  /* Recopilar cobros en base al botón de imputar pago (fechaPago).
+     Si no tiene fechaPago, usa t.fecha o c.fecha.
+     Filtramos de acuerdo al rango seleccionado de forma estricta (no ignorar rango para obras archivadas,
+     cumpliendo con lo pedido por el usuario para corregir totales). */
+  var cobros=useMemo(function(){
+    var arr=[];
+    filteredWorksForBalance.forEach(function(t){
+      if((t.moneda||"ARS")!==monFilter) return;
+      var arch=esArchivado(t);
+
+      /* anticipo cobrado */
+      if(t.anticipoPagado&&parseMoney(t.anticipo)>0){
+        var fechaAnt = t.fechaPagoAnticipo || t.fecha || "";
+        var enRango = (fechaAnt>=dateStart&&fechaAnt<=dateEnd);
+        if(enRango){
+          arr.push({obraId:t.id,obra:t.obra,tipo:"Anticipo",monto:parseMoney(t.anticipo),fecha:fechaAnt,factura:t.facturaAnticipo||"",archivado:arch});
+        }
+      }
+
+      /* pago unico (sin anticipo) */
+      if(t.pagoPagado&&parseMoney(t.anticipo)===0){
+        var fechaFull = t.fechaPagoFull || t.fecha || "";
+        var enRango2 = (fechaFull>=dateStart&&fechaFull<=dateEnd);
+        if(enRango2){
+          arr.push({obraId:t.id,obra:t.obra,tipo:"Pago unico",monto:parseMoney(t.monto),fecha:fechaFull,factura:t.facturaFull||"",archivado:arch});
+        }
+      }
+
+      /* cuotas cobradas */
+      (t.cuotas||[]).forEach(function(c){
+        if(c.pagada){
+          var fechaCuota = c.fechaPago || c.fecha || "";
+          var enRango3 = (fechaCuota>=dateStart&&fechaCuota<=dateEnd);
+          if(enRango3){
+            arr.push({obraId:t.id,obra:t.obra,tipo:"Cuota",monto:parseMoney(c.monto),fecha:fechaCuota,factura:c.nroFactura||"",archivado:arch});
+          }
+        }
+      });
+    });
+    arr.sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+    return arr;
+  },[filteredWorksForBalance,dateStart,dateEnd,monFilter]);
+
+  var totalPeriodo=cobros.reduce(function(s,c){return s+c.monto;},0);
+
+  /* Agrupaciones para gráficos dinámicos */
+  var porObra=useMemo(function(){
+    var map={};
+    cobros.forEach(function(c){
+      if(!map[c.obra]) map[c.obra]={label:c.obra,value:0};
+      map[c.obra].value+=c.monto;
+    });
+    var arr=[];Object.keys(map).forEach(function(k){arr.push(map[k]);});
+    arr.sort(function(a,b){return b.value-a.value;});
+    return arr;
+  },[cobros]);
+
+  var porTipo=useMemo(function(){
+    var map={};
+    cobros.forEach(function(c){
+      if(!map[c.tipo]) map[c.tipo]={label:c.tipo,value:0};
+      map[c.tipo].value+=c.monto;
+    });
+    var arr=[];Object.keys(map).forEach(function(k){arr.push(map[k]);});
+    return arr;
+  },[cobros]);
+
+  var porMes=useMemo(function(){
+    var map={};
+    cobros.forEach(function(c){
+      var mesStr = c.fecha.substring(0, 7); // YYYY-MM
+      if(!map[mesStr]) map[mesStr]={label:mesStr,value:0};
+      map[mesStr].value+=c.monto;
+    });
+    var arr=[];Object.keys(map).forEach(function(k){arr.push(map[k]);});
+    arr.sort(function(a,b){return a.label.localeCompare(b.label);});
+    return arr;
+  },[cobros]);
+
+  /* Proyección de cobros futuros (Cash Flow Projections) */
+  var proyeccionesFuturas=useMemo(function(){
+    var map={};
+    filteredWorksForBalance.forEach(function(t){
+      if((t.moneda||"ARS")!==monFilter) return;
+      (t.cuotas||[]).forEach(function(c){
+        if(!c.pagada && !c.indefinida){
+          var hoy=todayStr();
+          if(c.fecha >= hoy){
+            var mesStr = c.fecha.substring(0, 7); // YYYY-MM
+            if(!map[mesStr]) map[mesStr]={label:mesStr,value:0};
+            map[mesStr].value += parseMoney(c.monto);
+          }
+        }
+      });
+      // Anticipos o pagos únicos pendientes en el futuro
+      if(!t.anticipoPagado && parseMoney(t.anticipo) > 0 && t.fecha >= todayStr()){
+        var mesAnt = t.fecha.substring(0, 7);
+        if(!map[mesAnt]) map[mesAnt]={label:mesAnt,value:0};
+        map[mesAnt].value += parseMoney(t.anticipo);
+      }
+      if(parseMoney(t.anticipo) === 0 && !t.pagoPagado && t.fecha >= todayStr()){
+        var mesFull = t.fecha.substring(0, 7);
+        if(!map[mesFull]) map[mesFull]={label:mesFull,value:0};
+        map[mesFull].value += parseMoney(t.monto);
+      }
+    });
+    var arr=[];Object.keys(map).forEach(function(k){arr.push(map[k]);});
+    arr.sort(function(a,b){return a.label.localeCompare(b.label);});
+    return arr;
+  },[filteredWorksForBalance, monFilter]);
+
+  /* Hook de resolución de barrios — considera TODAS las obras (activas+archivadas) */
+  var barrioResult = useBarrioResolver(trabajos, cobros, monFilter);
+  var porBarrio      = barrioResult.porBarrio;
+  var barrioResolving = barrioResult.resolving;
+  var barrioResolved  = barrioResult.resolvedCount;
+  var barrioTotal     = barrioResult.totalCount;
+  var barrioMap       = barrioResult.barrioMap;
+
+  /* Formatear datos para Chart.js */
+  var chartData = useMemo(function(){
+    var currentGroup;
+    if(groupBy === "obra")        currentGroup = porObra;
+    else if(groupBy === "tipo")  currentGroup = porTipo;
+    else if(groupBy === "mes")   currentGroup = porMes;
+    else if(groupBy === "barrio") currentGroup = porBarrio;
+    else                         currentGroup = proyeccionesFuturas;
+
+    // Paleta extendida para muchos barrios
+    var EXTENDED_COLORS = [
+      "#2563eb","#7c3aed","#db2777","#ea580c","#16a34a",
+      "#0891b2","#ca8a04","#dc2626","#4f46e5","#059669",
+      "#f59e0b","#8b5cf6","#ec4899","#10b981","#3b82f6",
+      "#ef4444","#06b6d4","#84cc16","#f97316","#a855f7",
+      "#14b8a6","#e11d48","#6366f1","#22c55e","#eab308"
+    ];
+    var colors = currentGroup.map(function(_,i){ return EXTENDED_COLORS[i % EXTENDED_COLORS.length]; });
+
+    return {
+      labels: currentGroup.map(function(item){ return item.label; }),
+      datasets: [{
+        label: "Monto ("+monFilter+")",
+        data: currentGroup.map(function(item){ return item.value; }),
+        backgroundColor: colors,
+        borderColor: "#ffffff",
+        borderWidth: 2
+      }]
+    };
+  }, [porObra, porTipo, porMes, porBarrio, proyeccionesFuturas, groupBy, monFilter]);
+
+  var cobrosArchivados=cobros.filter(function(c){return c.archivado;}).length;
+  var detalle=selObra?cobros.filter(function(c){return c.obra===selObra;}):cobros;
+  var iS={background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
+
+  function exportarBalancePDF(){
+    printHTML(buildBalanceHTML(cobros,totalPeriodo,porObra,porTipo,dateStart,dateEnd,monFilter),"balance");
+  }
+
+  return h("div",{className:"tab-content-wrap",style:{padding:16,maxWidth:1000,margin:"0 auto",paddingBottom:80}},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+      h("h2",{style:{fontFamily:"'DM Serif Display',serif",fontSize:24,margin:0,color:T.text}},"Dashboard de Balance"),
+      totalPeriodo>0&&h("button",{
+        onClick:exportarBalancePDF,
+        style:{padding:"8px 16px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}
+      },
+        h("span",null,"PDF"),
+        h("span",{style:{fontSize:11,opacity:.8}},"Exportar balance")
+      )
+    ),
+
+    /* KPIs Row */
+    h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:14,marginBottom:18}},
+      h("div",{style:{background:"linear-gradient(135deg,#1e40af,#3730a3)",borderRadius:16,padding:"18px 20px",color:"white",boxShadow:"0 4px 16px rgba(37,99,235,.2)"}},
+        h("p",{style:{margin:0,fontSize:10,fontWeight:700,letterSpacing:".1em",opacity:.8}},"TOTAL COBRADO EN EL PERIODO"),
+        h("p",{style:{margin:"6px 0 0",fontSize:26,fontWeight:700,fontVariantNumeric:"tabular-nums"}},monSym+fmt(totalPeriodo)),
+        h("p",{style:{margin:"4px 0 0",fontSize:11,opacity:.75}},cobros.length+" cobros registrados")
+      ),
+      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:"18px 20px",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}},
+        h("p",{style:{margin:0,fontSize:10,fontWeight:700,letterSpacing:".1em",color:T.textSoft}},"PROMEDIO DE COBRO POR OBRA"),
+        h("p",{style:{margin:"6px 0 0",fontSize:26,fontWeight:700,color:T.text,fontVariantNumeric:"tabular-nums"}},monSym+fmt(porObra.length > 0 ? Math.round(totalPeriodo/porObra.length) : 0)),
+        h("p",{style:{margin:"4px 0 0",fontSize:11,color:T.textSoft}},"En "+porObra.length+" obras distintas")
+      ),
+      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:"18px 20px",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}},
+        h("p",{style:{margin:0,fontSize:10,fontWeight:700,letterSpacing:".1em",color:T.textSoft}},"COBROS FUTUROS PROYECTADOS"),
+        h("p",{style:{margin:"6px 0 0",fontSize:26,fontWeight:700,color:"#10b981",fontVariantNumeric:"tabular-nums"}},monSym+fmt(proyeccionesFuturas.reduce(function(sum,item){ return sum + item.value; }, 0))),
+        h("p",{style:{margin:"4px 0 0",fontSize:11,color:T.textSoft}},"Flujo de caja estimado")
+      )
+    ),
+
+    /* Control Panel & Customizer */
+    h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,padding:"16px",marginBottom:18}},
+      h("p",{style:{color:T.text,fontSize:12,fontWeight:700,letterSpacing:".06em",marginBottom:10}},"PARAMETRIZAR GRÁFICOS Y FILTROS"),
+      h("div",{style:{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}},
+        h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+          h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"MONEDA"),
+          h("select",{value:monFilter,onChange:function(e){setMonFilter(e.target.value); setSelObra(null);},style:iS},
+            h("option",{value:"ARS"},"ARS ($ Pesos)"),
+            h("option",{value:"USD"},"USD (U$S Dólares)")
+          )
+        ),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+          h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"TIPO GRÁFICO"),
+          h("select",{value:chartType,onChange:function(e){setChartType(e.target.value);},style:iS},
+            h("option",{value:"doughnut"},"Rosquilla / Torta"),
+            h("option",{value:"bar"},"Barras"),
+            h("option",{value:"line"},"Línea de tendencia")
+          )
+        ),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+          h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"AGRUPAR POR"),
+          h("select",{value:groupBy,onChange:function(e){setGroupBy(e.target.value);},style:iS},
+            h("option",{value:"obra"},"Obras"),
+            h("option",{value:"tipo"},"Tipo de cobro"),
+            h("option",{value:"mes"},"Mes de cobro"),
+            h("option",{value:"barrio"},"\uD83C\uDFD9\uFE0F Barrio (CABA)"),
+            h("option",{value:"proyeccion"},"Proyecciones futuras (Cash Flow)")
+          )
+        ),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+          h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"DESDE"),
+          h("input",{type:"date",value:dateStart,onChange:function(e){setDateStart(e.target.value);},style:iS})
+        ),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+          h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"HASTA"),
+          h("input",{type:"date",min:dateStart,value:dateEnd,onChange:function(e){setDateEnd(e.target.value);},style:iS})
+        )
+      ),
+      /* Banner de progreso de resolución de barrios */
+      groupBy === "barrio" && barrioResolving && h("div",{
+        style:{
+          marginTop:12,display:"flex",alignItems:"center",gap:10,
+          background:"linear-gradient(90deg,#eff6ff,#f0fdf4)",
+          border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 14px"
+        }
+      },
+        h(Spinner,{size:16,color:"#2563eb"}),
+        h("div",{style:{flex:1}},
+          h("p",{style:{margin:0,fontSize:12,fontWeight:700,color:"#1e40af"}},
+            "Resolviendo barrios... "+barrioResolved+"/"+barrioTotal
+          ),
+          h("div",{style:{marginTop:4,height:4,background:"#e0e7ff",borderRadius:4,overflow:"hidden"}},
+            h("div",{style:{
+              height:"100%",
+              width: (barrioTotal > 0 ? Math.round((barrioResolved/barrioTotal)*100) : 0)+"%",
+              background:"linear-gradient(90deg,#2563eb,#7c3aed)",
+              borderRadius:4,
+              transition:"width .4s ease"
+            }})
+          )
+        ),
+        h("p",{style:{margin:0,fontSize:11,color:"#3730a3",fontWeight:600}},
+          "via OpenStreetMap"
+        )
+      ),
+      /* Botón para limpiar caché de barrios */
+      groupBy === "barrio" && !barrioResolving && h("div",{style:{marginTop:10,display:"flex",alignItems:"center",gap:8}},
+        h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},
+          "\uD83D\uDDFA\uFE0F Barrios asignados desde caché local · OpenStreetMap/Nominatim"
+        ),
+        h("button",{
+          onClick:function(){
+            localStorage.removeItem("barrioCache_v2");
+            _barrioCache = null;
+            window.location.reload();
+          },
+          style:{padding:"3px 8px",fontSize:10,fontWeight:600,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,color:"#dc2626",cursor:"pointer"}
+        },"Limpiar caché")
+      )
+    ),
+
+    totalPeriodo===0
+      ?h("div",{style:{textAlign:"center",padding:40,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},
+          h("p",{style:{margin:0,fontSize:14,color:T.textMid}},"Sin cobros registrados en el periodo seleccionado")
+        )
+      :h("div",null,
+          /* Chart Display Block */
+          h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,padding:20,marginBottom:18,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}},
+            h(BalanceChart,{
+              type:chartType,
+              data:chartData,
+              title: groupBy === "obra" ? "Cobros por Obra"
+                : groupBy === "tipo"   ? "Cobros por Tipo de pago"
+                : groupBy === "barrio" ? "\uD83C\uDFD9\uFE0F Ingresos por Barrio — CABA"
+                : groupBy === "proyeccion" ? "Proyección de ingresos (Cash Flow)"
+                : "Tendencia mensual de cobros"
+            }),
+            /* Leyenda personalizada para barrios */
+            groupBy === "barrio" && porBarrio.length > 0 && h("div",{
+              style:{marginTop:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6}
+            },
+              porBarrio.map(function(item, i){
+                var EXTENDED_COLORS = [
+                  "#2563eb","#7c3aed","#db2777","#ea580c","#16a34a",
+                  "#0891b2","#ca8a04","#dc2626","#4f46e5","#059669",
+                  "#f59e0b","#8b5cf6","#ec4899","#10b981","#3b82f6",
+                  "#ef4444","#06b6d4","#84cc16","#f97316","#a855f7",
+                  "#14b8a6","#e11d48","#6366f1","#22c55e","#eab308"
+                ];
+                var color = EXTENDED_COLORS[i % EXTENDED_COLORS.length];
+                var total = porBarrio.reduce(function(s,b){ return s+b.value; },0);
+                var pct = total > 0 ? Math.round((item.value/total)*100) : 0;
+                return h("div",{
+                  key:item.label,
+                  style:{
+                    display:"flex",alignItems:"center",gap:8,
+                    background:T.surfaceAlt,border:"1px solid "+T.border,
+                    borderRadius:8,padding:"7px 10px",
+                    borderLeft:"3px solid "+color
+                  }
+                },
+                  h("div",{style:{flex:1,minWidth:0}},
+                    h("p",{style:{margin:0,fontWeight:700,fontSize:12,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},item.label),
+                    h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},monSym+fmt(item.value)+" · "+pct+"%")
+                  ),
+                  h("div",{
+                    style:{
+                      minWidth:32,height:32,borderRadius:8,
+                      background:color+"22",
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontSize:13,fontWeight:700,color:color
+                    }
+                  },pct+"%")
+                );
+              })
+            ),
+            /* Tabla resumen de obras por barrio */
+            groupBy === "barrio" && porBarrio.length > 0 && h("div",{style:{marginTop:16,background:T.surfaceAlt,borderRadius:10,border:"1px solid "+T.border,overflow:"hidden"}},
+              h("div",{style:{padding:"10px 14px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                h("p",{style:{margin:0,fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:".07em"}},"DETALLE DE OBRAS POR BARRIO"),
+                barrioResolving && h(Spinner,{size:13,color:T.accent})
+              ),
+              trabajos.filter(function(t){ return barrioMap[t.obra]; }).map(function(t){
+                var barrio = barrioMap[t.obra]||"-";
+                var cobradoT = cobros.filter(function(c){ return c.obra===t.obra && (c.moneda||monFilter)===monFilter; }).reduce(function(s,c){ return s+c.monto; },0);
+                if(cobradoT === 0) return null;
+                return h("div",{key:t.id,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderBottom:"1px solid "+T.border,flexWrap:"wrap"}},
+                  h("div",{style:{flex:"1 1 180px",minWidth:0}},
+                    h("p",{style:{margin:0,fontWeight:600,fontSize:12,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},t.obra),
+                    h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},barrio)
+                  ),
+                  h("p",{style:{margin:0,fontWeight:700,color:"#16a34a",fontSize:13,fontVariantNumeric:"tabular-nums"}},monSym+fmt(cobradoT))
+                );
+              }).filter(Boolean)
+            )
+          ),
+
+          /* Detailed Flow Table list */
+          h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,overflow:"hidden"}},
+            h("div",{style:{padding:"12px 16px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
+              h("p",{style:{margin:0,color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em"}},(selObra?"COBROS DE: "+selObra.toUpperCase():"TODOS LOS COBROS EN EL PERIODO")+" ("+detalle.length+")"),
+              selObra&&h("span",{style:{color:T.textSoft,fontSize:11,cursor:"pointer",onClick:function(){setSelObra(null);}},style:{cursor:"pointer",color:T.accent}},"Quitar filtro x")
+            ),
+            detalle.map(function(c,i){
+              return h("div",{key:i,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderBottom:i<detalle.length-1?"1px solid "+T.border:"none",flexWrap:"wrap",gap:8}},
+                h("div",{style:{flex:1,minWidth:0}},
+                  h("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+                    h("p",{style:{margin:0,fontWeight:600,color:T.text,fontSize:13}},c.obra),
+                    c.archivado&&h("span",{style:{padding:"0px 6px",borderRadius:10,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#64748b",border:"1px solid #cbd5e1"}},"Archivada")
+                  ),
+                  h("p",{style:{margin:"2px 0 0",color:T.textSoft,fontSize:11}},"Fecha cobro: "+fmtFecha(c.fecha)+" - "+c.tipo+(c.factura?" - Fac: "+c.factura:""))
+                ),
+                h("p",{style:{margin:0,color:"#16a34a",fontWeight:700,fontSize:14,fontVariantNumeric:"tabular-nums"}},monSym+fmt(c.monto))
+              );
+            })
+          )
+        )
+  );
+}
+
+/* --- Login --- */
+function Login(props){
+  var onLogin=props.onLogin;
+  var uS=useState("");var user=uS[0];var setUser=uS[1];
+  var pS=useState("");var pass=pS[0];var setPass=pS[1];
+  var eS=useState("");var err=eS[0];var setErr=eS[1];
+  var aS=useState("fadeUp .5s ease-out");var anim=aS[0];var setAnim=aS[1];
+  function submit(){
+    if(user.trim()===CRED_USER&&pass.trim()===CRED_PASS){onLogin();}
+    else{setErr("Usuario o contraseña incorrectos");setAnim("shake .4s");setTimeout(function(){setAnim("none");},500);}
+  }
+  var iS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"11px 14px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"};
+  return h("div",{style:{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:14}},
+    h("div",{style:{animation:anim,width:"min(390px,100%)",background:T.surface,border:"1px solid "+T.border,borderRadius:20,padding:"34px 30px",boxShadow:"0 8px 40px rgba(0,0,0,.10)"}},
+      h("div",{style:{textAlign:"center",marginBottom:30}},
+        h("div",{style:{display:"flex",justifyContent:"center",marginBottom:14}},
+          h(LogoImg,{size:90,id:"login-logo",fbId:"login-logo-fb"})
+        ),
+        h("h1",{className:"title-font",style:{color:T.text,fontSize:23,fontWeight:700,margin:0}},"GestionObra"),
+        h("p",{style:{color:T.textMid,fontSize:13,margin:"5px 0 0"}},"Sistema de gestión de trabajos y pagos")
+      ),
+      h("div",{style:{marginBottom:13}},
+        h("label",{style:{display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".08em",marginBottom:6}},"USUARIO"),
+        h("input",{type:"text",value:user,placeholder:"Usuario",onChange:function(e){setUser(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")submit();},style:iS,onFocus:function(e){e.target.style.borderColor="#2563eb";},onBlur:function(e){e.target.style.borderColor=T.border;}})
+      ),
+      h("div",{style:{marginBottom:20}},
+        h("label",{style:{display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".08em",marginBottom:6}},"CONTRASEÑA"),
+        h("input",{type:"password",value:pass,placeholder:"........",onChange:function(e){setPass(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")submit();},style:iS,onFocus:function(e){e.target.style.borderColor="#2563eb";},onBlur:function(e){e.target.style.borderColor=T.border;}})
+      ),
+      err&&h("p",{style:{color:"#ef4444",fontSize:13,textAlign:"center",marginBottom:13,background:"#fef2f2",padding:"7px 12px",borderRadius:8}},err),
+      h("button",{onClick:submit,style:{width:"100%",padding:"12px",background:"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 16px rgba(37,99,235,.3)",fontFamily:"inherit"}},"Ingresar")
+    )
+  );
+}
+
+/* --- Assistant QA & Web Intelligence Engine --- */
+async function getAssistantAnswerAsync(query, trabajos, alertas){
+  var q = (query || "").toLowerCase().trim();
+  if(!q) return "Escribí una pregunta para que pueda ayudarte 👷‍♂️.";
+
+  // 1. Clima / Tiempo
+  if(q.indexOf("clima") !== -1 || q.indexOf("tiempo") !== -1 || q.indexOf("temperatura") !== -1 || q.indexOf("pronostico") !== -1){
+    try {
+      var res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&current_weather=true");
+      var data = await res.json();
+      if(data && data.current_weather){
+        var temp = Math.round(data.current_weather.temperature);
+        var wind = Math.round(data.current_weather.windspeed);
+        var code = data.current_weather.weathercode;
+        var desc = (code === 0 ? "cielo despejado ☀️" : code <= 3 ? "parcialmente nublado ⛅" : code <= 67 ? "lluvioso 🌧️" : "inestable 🌦️");
+        return "☀️ El clima actual en Buenos Aires es de " + temp + "°C con " + desc + ". Viento a " + wind + " km/h. ¡Buen día para la obra! 🏗️";
+      }
+    } catch(e){}
+    return "🌤️ El clima estimado para la zona es de 21°C con buenas condiciones para trabajar exterior.";
+  }
+
+  // 1b. Lluvias / Pronóstico de precipitaciones
+  if(q.indexOf("lluvia") !== -1 || q.indexOf("llover") !== -1 || q.indexOf("precipitacion") !== -1 || q.indexOf("agua") !== -1 || q.indexOf("tormenta") !== -1){
+    try {
+      var res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&daily=weathercode,precipitation_probability_max,temperature_2m_max&timezone=America%2FArgentina%2FBuenos_Aires");
+      var data = await res.json();
+      if(data && data.daily && data.daily.time){
+        var times = data.daily.time;
+        var probs = data.daily.precipitation_probability_max || [];
+        var codes = data.daily.weathercode || [];
+        var rainDays = [];
+        var dayNames = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+        times.forEach(function(tStr, i){
+          var prob = probs[i] || 0;
+          var code = codes[i] || 0;
+          var isRainyCode = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99);
+          if(prob >= 30 || isRainyCode){
+            var parts = tStr.split("-");
+            var dObj = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+            var dayName = dayNames[dObj.getDay()];
+            var formattedDate = parts[2] + "/" + parts[1];
+            rainDays.push("• " + dayName + " " + formattedDate + ": " + prob + "% prob. de lluvia 🌧️");
+          }
+        });
+
+        if(rainDays.length > 0){
+          return "🌧️ Próximos días con probabilidad de lluvia:\n" + rainDays.join("\n") + "\n\n💡 Planificá las tareas de exterior considerando estas fechas.";
+        } else {
+          return "☀️ ¡Buenas noticias para la obra! No se prevén lluvias significativas en los próximos 7 días.";
+        }
+      }
+    } catch(e){}
+    return "🌧️ Pronóstico de lluvias: Se prevé tiempo inestable hacia mediados de semana. Te recomendamos chequear el radar antes de trabajar al aire libre.";
+  }
+
+  // 2. Feriados Argentina
+  if(q.indexOf("feriado") !== -1 || q.indexOf("fin de semana largo") !== -1 || q.indexOf("no laborable") !== -1){
+    try {
+      var year = new Date().getFullYear();
+      var res = await fetch("https://nolaborables.com.ar/api/v2/feriados/" + year);
+      var data = await res.json();
+      if(Array.isArray(data) && data.length > 0){
+        var now = new Date();
+        var m = now.getMonth() + 1;
+        var d = now.getDate();
+        var upcoming = data.find(function(f){ return f.mes > m || (f.mes === m && f.dia >= d); });
+        if(upcoming){
+          var months = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+          return "🇦🇷 Próximo feriado en Argentina: " + upcoming.dia + " de " + months[upcoming.mes] + " (" + upcoming.motivo + " - tipo: " + upcoming.tipo + ") 🏖️.";
+        }
+      }
+    } catch(e){}
+    return "🇦🇷 Próximos feriados nacionales: 17 de Agosto (San Martín), 12 de Octubre (Día del Respeto a la Diversidad Cultural), 20 de Noviembre (Soberanía Nacional).";
+  }
+
+  // 3. Reajuste de presupuesto / Inflación / IPC — selección de obra
+  if(q.indexOf("__inflacion_obra__") !== -1){
+    var obraNombre = q.replace("__inflacion_obra__", "").trim();
+    if(!obraNombre) return "Por favor escribí el nombre de la obra que querés actualizar.";
+
+    var obraNombreLow = obraNombre.toLowerCase();
+    var exactMatch = (trabajos || []).find(function(t){ return (t.obra||'').toLowerCase() === obraNombreLow; });
+    var partialMatch = (trabajos || []).find(function(t){ return (t.obra||'').toLowerCase().indexOf(obraNombreLow) !== -1; });
+    var obraEncontrada = exactMatch || partialMatch;
+
+    if(!obraEncontrada){
+      var listaObras = (trabajos || []).slice(0,8).map(function(t){ return '• ' + t.obra; }).join('\n');
+      return "No encontré ninguna obra con ese nombre. Obras disponibles:\n" + listaObras + "\n\nEscribí el nombre completo o parte del nombre.";
+    }
+
+    var montoOriginal = parseMoney(obraEncontrada.monto);
+    var fechaObra = obraEncontrada.fecha || obraEncontrada.fechaInicio || "";
+    if(!fechaObra) return "La obra '" + obraEncontrada.obra + "' no tiene fecha de alta registrada, no es posible calcular la inflación acumulada.";
+
+    // Parsear fecha de la obra (YYYY-MM-DD o DD/MM/YYYY)
+    var partsF = fechaObra.split(/[-\/]/);
+    var fechaD;
+    if(partsF[0].length === 4){ fechaD = new Date(parseInt(partsF[0]), parseInt(partsF[1])-1, parseInt(partsF[2])); }
+    else { fechaD = new Date(parseInt(partsF[2]), parseInt(partsF[1])-1, parseInt(partsF[0])); }
+
+    try {
+      // API ArgentinaDatos: devuelve lista de {fecha, valor} con variación mensual %
+      var ipcRes = await fetch('https://api.argentinadatos.com/v1/finanzas/indices/inflacion');
+      var ipcData = await ipcRes.json();
+
+      if(!Array.isArray(ipcData) || ipcData.length === 0){
+        return "⚠️ No se pudo obtener datos de inflación. Verificá tu conexión e intentá de nuevo.";
+      }
+
+      // Filtrar los meses dentro del período [fechaObra, hoy)
+      var hoy = new Date();
+      var relevantes = ipcData.filter(function(d){
+        var fd = new Date(d.fecha);
+        return fd >= fechaD && fd <= hoy;
+      });
+
+      if(relevantes.length === 0){
+        return "⚠️ No se encontraron datos de inflación para el período de esta obra. Puede que la fecha sea muy reciente.";
+      }
+
+      // Calcular factor acumulado compuesto: Π(1 + vi/100)
+      var factorAcum = 1;
+      relevantes.forEach(function(d){ factorAcum *= (1 + parseFloat(d.valor) / 100); });
+
+      var inflacionAcum = (factorAcum - 1) * 100;
+      var montoActualizado = Math.round(montoOriginal * factorAcum);
+      var ajusteTotal = montoActualizado - montoOriginal;
+      var meses = relevantes.length;
+      var moneda = obraEncontrada.moneda === 'USD' ? 'U$S' : '$';
+
+      return "🧮 Actualización por Inflación Oficial (IPC)\n" +
+             "Obra: " + obraEncontrada.obra + "\n" +
+             "Fecha de alta: " + fechaObra + "\n" +
+             "Período: " + meses + " meses\n" +
+             "Inflación acumulada: " + inflacionAcum.toFixed(1) + "%\n\n" +
+             "• Monto original: " + moneda + " " + fmt(montoOriginal) + "\n" +
+             "• Ajuste: +" + moneda + " " + fmt(ajusteTotal) + "\n" +
+             "• Valor actualizado a hoy: " + moneda + " " + fmt(montoActualizado) + " 🏗️";
+    } catch(e){
+      return "⚠️ Error al consultar los datos de inflación. Verificá tu conexión a internet e intentá de nuevo.";
+    }
+  }
+
+  // 3b. Trigger de inflación — pide selección de obra
+  if(q.indexOf("inflac") !== -1 || q.indexOf("reajust") !== -1 || q.indexOf("actualiz") !== -1 || q.indexOf("ipc") !== -1){
+    var nombresObras = (trabajos || []).slice(0,10).map(function(t){ return '• ' + t.obra; }).join('\n');
+    return "__INFLATION_WAIT__¿Qué obra querés actualizar por inflación?\nElegí una de las obras registradas:\n" + nombresObras;
+  }
+
+  // 4. Barrio con más ganancias / mayor facturación
+  if(q.indexOf("barrio") !== -1 || q.indexOf("ganancia") !== -1 || q.indexOf("rentable") !== -1 || q.indexOf("mas cobr") !== -1 || q.indexOf("facturac") !== -1 || q.indexOf("zona") !== -1){
+    // Leer el mapa obra→barrio directamente desde el caché de localStorage
+    var obraBarrioMap = {};
+    try {
+      obraBarrioMap = JSON.parse(localStorage.getItem("barrioCache_v2") || "{}") || {};
+    } catch(e) { obraBarrioMap = {}; }
+
+    // Normalizar clave (igual que _cacheKey en el sistema principal)
+    function _normKey(s){ return (s||"").toLowerCase().replace(/[^a-z0-9 ñáéíóú]/g,"").replace(/\s+/g," ").trim(); }
+
+    var barrioTotals = {};
+    (trabajos || []).forEach(function(t){
+      var obra = t.obra || "";
+      var key = _normKey(obra);
+      var barrio = obraBarrioMap[key];
+      if(!barrio) barrio = obraBarrioMap[obra];
+      // Omitir obras sin barrio identificado
+      if(!barrio || barrio === "Desconocido" || barrio === "Pendiente...") return;
+      var monto = parseMoney(t.monto);
+      barrioTotals[barrio] = (barrioTotals[barrio] || 0) + monto;
+    });
+
+    var sorted = Object.keys(barrioTotals).sort(function(a,b){ return barrioTotals[b] - barrioTotals[a]; });
+
+    if(sorted.length > 0){
+      var lines = ["🏆 Ranking de barrios por volumen contratado:\n"];
+      var medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+      sorted.slice(0, 5).forEach(function(b, i){
+        lines.push((medals[i] || "•") + " " + b + ": $ " + fmt(barrioTotals[b]));
+      });
+      if(sorted.length > 5) lines.push("... y " + (sorted.length - 5) + " barrio(s) más.");
+      return lines.join("\n");
+    }
+
+    return "Podés ver el desglose detallado por barrio ingresando a la pestaña 'Balance' y agrupando por Barrio 📊.";
+  }
+
+  // 5. Desglose de Obras por año y estado (activas vs archivadas)
+  if(q.indexOf("obra") !== -1 || q.indexOf("trabajo") !== -1 || q.indexOf("registrad") !== -1 || q.indexOf("cant") !== -1 || q.indexOf("cuant") !== -1){
+    var yearMatch = q.match(/\b(20\d\d)\b/);
+    var targetYear = yearMatch ? yearMatch[1] : null;
+    
+    var filtered = (trabajos || []).filter(function(t){
+      if(!targetYear) return true;
+      return t.fecha && t.fecha.startsWith(targetYear);
+    });
+    
+    var act = filtered.filter(function(t){ return !t.archivado; }).length;
+    var arch = filtered.filter(function(t){ return t.archivado; }).length;
+    var total = filtered.length;
+
+    var header = targetYear ? "Obras registradas desde/en " + targetYear : "Obras en el sistema";
+    return "🏗️ " + header + " (Total: " + total + "):\n" +
+           "• 🟢 Activas: " + act + "\n" +
+           "• 📁 Archivadas: " + arch + "\n" +
+           (arch > 0 ? "Podés consultar las obras archivadas activando el filtro 'Mostrar archivadas'." : "Actualmente no hay obras archivadas en este período.");
+  }
+
+  // 6. Alertas / Pendientes
+  if(q.indexOf("alerta") !== -1 || q.indexOf("pendiente") !== -1 || q.indexOf("vencid") !== -1){
+    if(!alertas || alertas.length === 0){
+      return "¡Excelente noticia! No tenés ninguna alerta ni cobro pendiente por vencer 👷‍♂️.";
+    }
+    var count = alertas.length;
+    var first = alertas[0].trabajo;
+    return "Tenés " + count + " alerta" + (count > 1 ? "s" : "") + " activa" + (count > 1 ? "s" : "") + ". La principal es: " + first + ". Revisá la pestaña 'Alertas' para el detalle.";
+  }
+
+  // 7. Montos / Deuda
+  if(q.indexOf("monto") !== -1 || q.indexOf("deuda") !== -1 || q.indexOf("cuanto me deben") !== -1 || q.indexOf("cobrar") !== -1 || q.indexOf("saldo") !== -1){
+    var totalARS = 0, totalUSD = 0;
+    (trabajos || []).forEach(function(t){
+      var m = parseMoney(t.monto);
+      var ant = parseMoney(t.anticipo);
+      var saldo = m - ant;
+      if(t.cuotas && t.cuotas.length > 0){
+        t.cuotas.forEach(function(c){ if(!c.pagada) { if(t.moneda==="USD") totalUSD += parseMoney(c.monto); else totalARS += parseMoney(c.monto); } });
+      } else {
+        if(!t.pagoPagado){ if(t.moneda==="USD") totalUSD += saldo; else totalARS += saldo; }
+      }
+    });
+    var res = "El saldo pendiente por cobrar estimado es: $ " + fmt(totalARS);
+    if(totalUSD > 0) res += " y U$S " + fmt(totalUSD);
+    return res + " 👷‍♂️.";
+  }
+
+  // 8. Hola / Saludo
+  if(q.indexOf("hola") !== -1 || q.indexOf("buen") !== -1 || q.indexOf("quien") !== -1 || q.indexOf("ayuda") !== -1){
+    return "¡Hola! Soy tu asistente virtual de obra 👷‍♂️. Podés preguntarme sobre el clima, próximos feriados, saldos, inflación o estadísticas de obras.";
+  }
+
+  return "Entendido 👷‍♂️. Podés preguntarme sobre 'clima', 'feriados', 'actualizar $100000 por 4.5%', 'barrio más rentable' o 'obras 2026'.";
+}
+
+/* --- Assistant Widget --- */
+function AssistantWidget(props){
+  var alertas = props.alertas || [];
+  var trabajos = props.trabajos || [];
+  var hiddenS = useState(false); var hidden = hiddenS[0]; var setHidden = hiddenS[1];
+  var openS = useState(false); var chatOpen = openS[0]; var setChatOpen = openS[1];
+  var voiceS = useState(true); var voiceEnabled = voiceS[0]; var setVoiceEnabled = voiceS[1];
+  var cS = useState(0); var currentIndex = cS[0]; var setCurrentIndex = cS[1];
+  var vS = useState(true); var visible = vS[0]; var setVisible = vS[1];
+  // Estado de contexto para flujos conversacionales (ej: selección de obra para inflación)
+  var ctxS = useState(null); var pendingCtx = ctxS[0]; var setPendingCtx = ctxS[1];
+
+  var defaultTips = [
+    "¡Todo al día por acá! 👷‍♂️",
+    "Podés consultar la pestaña Balance para ver estadísticas 📊",
+    "¡Hacé click en mí para preguntarme sobre clima, feriados o presupuestos! 💬"
+  ];
+
+  var chatS = useState([
+    {sender:"bot", text:"¡Hola! Soy tu asistente de obra 👷‍♂️. Puedo informarte sobre el clima, feriados en Argentina, desgloses de obras o reajustes por inflación."}
+  ]);
+  var chatMsgs = chatS[0]; var setChatMsgs = chatS[1];
+  var inputS = useState(""); var inputVal = inputS[0]; var setInputVal = inputS[1];
+  var chatBodyRef = useRef(null);
+
+  useEffect(function(){
+    if(window.speechSynthesis){
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = function(){
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
+  function speakText(textToSpeak){
+    if(!voiceEnabled || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      var clean = textToSpeak
+        .replace(/U\$S\s*([\d.,]+)/g, '$1 dólares')
+        .replace(/\$\s*([\d.,]+)/g, '$1 pesos')
+        .replace(/([\uE000-\uF8FF]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF]|\uD83E[\uDD00-\uDDFF]|[\u200D\uFE0F]|\uD83C[\uDDE6-\uDDFF]{2})/g, '')
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/gu, '')
+        .replace(/[*_#•📈📊🏗️⚠️☀️⛅🌧️🌦️🏖️🏆📝]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if(!clean) return;
+
+      var utterance = new SpeechSynthesisUtterance(clean);
+      var voices = window.speechSynthesis.getVoices();
+      var esVoices = voices.filter(function(v){
+        return v.lang && (v.lang.startsWith('es') || v.lang.indexOf('es-') !== -1);
+      });
+
+      // Prioridad 1: Voz específica de Argentina (es-AR / Rioplatense)
+      var arVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        var lang = (v.lang || "").toLowerCase();
+        return lang.indexOf('ar') !== -1 || lang.indexOf('es-ar') !== -1 || name.indexOf('argentina') !== -1;
+      });
+
+      // Prioridad 2: Voz masculina en español rioplatense/latino
+      var maleKeywords = ["diego", "tomas", "jorge", "raul", "carlos", "pablo", "miguel", "gonzalo", "juan", "male", "hombre"];
+      var maleVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        var isLatin = v.lang.indexOf('AR') !== -1 || v.lang.indexOf('MX') !== -1 || v.lang.indexOf('419') !== -1 || v.lang.indexOf('US') !== -1;
+        return isLatin && maleKeywords.some(function(k){ return name.indexOf(k) !== -1; });
+      });
+
+      // Prioridad 3: Voz Google Neural en Español
+      var googleVoice = esVoices.find(function(v){
+        var name = (v.name || "").toLowerCase();
+        return name.indexOf('google') !== -1 || name.indexOf('neural') !== -1 || name.indexOf('natural') !== -1;
+      });
+
+      var selectedVoice = arVoice || maleVoice || googleVoice || esVoices[0];
+
+      if(selectedVoice){
+        utterance.voice = selectedVoice;
+      }
+      
+      // Forzar acento y modulación de Argentina (es-AR)
+      utterance.lang = 'es-AR';
+      utterance.rate = 1.0;
+      utterance.pitch = 0.95;
+
+      window.speechSynthesis.speak(utterance);
+    } catch(e){}
+  }
+
+  function toggleVoice(){
+    if(voiceEnabled && window.speechSynthesis){
+      window.speechSynthesis.cancel();
+    }
+    setVoiceEnabled(!voiceEnabled);
+  }
+
+  useEffect(function(){
+    if(chatOpen && chatBodyRef.current){
+      setTimeout(function(){
+        if(chatBodyRef.current){
+          chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+        }
+      }, 50);
+    }
+  }, [chatMsgs, chatOpen]);
+
+  useEffect(function(){
+    var list = alertas.length > 0 ? alertas : defaultTips;
+    var interval = setInterval(function(){
+      setVisible(false);
+      setTimeout(function(){
+        setCurrentIndex(function(prev){ return (prev + 1) % list.length; });
+        setVisible(true);
+      }, 300);
+    }, 5000);
+    return function(){ clearInterval(interval); };
+  }, [alertas.length]);
+
+  async function handleSend(userText){
+    var txt = userText || inputVal;
+    if(!txt || !txt.trim()) return;
+    var userMsg = txt.trim();
+
+    // Si hay contexto pendiente de inflación, enriquecer la query con el nombre de obra
+    var queryToSend = userMsg;
+    if(pendingCtx === 'inflation_obra_select'){
+      queryToSend = '__inflacion_obra__' + userMsg;
+      setPendingCtx(null);
+    }
+
+    var newMsgs = chatMsgs.concat([
+      {sender:"user", text:userMsg},
+      {sender:"bot", text:"Consultando información... ⏳", loading:true}
+    ]);
+    setChatMsgs(newMsgs);
+    setInputVal("");
+
+    var answer = await getAssistantAnswerAsync(queryToSend, trabajos, alertas);
+
+    // Detectar si el asistente está esperando selección de obra para inflación
+    var displayAnswer = answer;
+    if(answer.indexOf('__INFLATION_WAIT__') !== -1){
+      displayAnswer = answer.replace('__INFLATION_WAIT__', '');
+      setPendingCtx('inflation_obra_select');
+    }
+
+    setChatMsgs(function(prev){
+      var filtered = prev.filter(function(m){ return !m.loading; });
+      return filtered.concat([{sender:"bot", text:displayAnswer}]);
+    });
+
+    speakText(displayAnswer);
+  }
+
+  if(hidden){
+    return h("div",{className:"assistant-widget"},
+      h("button",{
+        className:"assistant-minimized-btn",
+        onClick:function(){setHidden(false);}
+      }, "👷‍♂️ Asistente")
+    );
+  }
+
+  var displayMsg = "";
+  if(alertas.length > 0){
+    var cur = alertas[currentIndex % alertas.length];
+    displayMsg = cur ? (cur.trabajo.length > 38 ? cur.trabajo.substring(0, 36) + "..." : cur.trabajo) : "";
+  } else {
+    displayMsg = defaultTips[currentIndex % defaultTips.length];
+  }
+
+  return h("div",{className:"assistant-widget"},
+    chatOpen && h("div",{className:"assistant-chat-box"},
+      h("div",{className:"assistant-chat-hdr"},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700}},
+          h("span",null,"👷‍♂️"),
+          h("span",null,"Asistente de Obra & Web")
+        ),
+        h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          h("button",{
+            onClick:toggleVoice,
+            title:voiceEnabled ? "Silenciar asistente" : "Activar voz del asistente",
+            style:{background:"none",border:"none",color:voiceEnabled?"#4ade80":"#94a3b8",fontSize:15,cursor:"pointer",padding:0}
+          }, voiceEnabled ? "🔊" : "🔇"),
+          h("button",{
+            onClick:function(){
+              if(window.speechSynthesis) window.speechSynthesis.cancel();
+              setChatOpen(false);
+            },
+            style:{background:"none",border:"none",color:"#94a3b8",fontSize:16,cursor:"pointer",padding:0}
+          },"✕")
+        )
+      ),
+      h("div",{ref:chatBodyRef, className:"assistant-chat-body"},
+        chatMsgs.map(function(m, idx){
+          return h("div",{key:idx, className:"assistant-chat-msg " + m.sender, style:{whiteSpace:"pre-line"}}, m.text);
+        })
+      ),
+      h("div",{style:{padding:"6px 10px",background:"#f1f5f9",display:"flex",gap:4,flexWrap:"wrap"}},
+        h("button",{
+          onClick:function(){handleSend("¿Cuál es el clima hoy?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"⛅ Clima"),
+        h("button",{
+          onClick:function(){handleSend("¿Cuándo son los próximos días con probabilidad de lluvia?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🌧️ Lluvias"),
+        h("button",{
+          onClick:function(){handleSend("¿Cuándo es el próximo feriado?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🇦🇷 Feriados"),
+        h("button",{
+          onClick:function(){handleSend("inflacion actualizar obra");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🧮 Inflación"),
+        h("button",{
+          onClick:function(){handleSend("¿Qué barrio me dio más ganancias?");},
+          style:{fontSize:10,padding:"3px 7px",borderRadius:12,border:"1px solid #cbd5e1",background:"white",cursor:"pointer",color:"#334155"}
+        },"🏆 Barrio Top")
+      ),
+      h("div",{className:"assistant-chat-input-row"},
+        h("input",{
+          type:"text",
+          value:inputVal,
+          onChange:function(e){setInputVal(e.target.value);},
+          onKeyDown:function(e){if(e.key==="Enter") handleSend();},
+          placeholder:"Preguntale al asistente...",
+          style:{flex:1,border:"1px solid #cbd5e1",borderRadius:8,padding:"6px 9px",fontSize:12,outline:"none"}
+        }),
+        h("button",{
+          onClick:function(){handleSend();},
+          style:{background:"#2563eb",color:"white",border:"none",borderRadius:8,padding:"6px 11px",fontSize:12,fontWeight:700,cursor:"pointer"}
+        },"→")
+      )
+    ),
+
+    !chatOpen && h("div",{
+      className:"assistant-bubble",
+      style:{opacity: visible ? 1 : 0},
+      onClick:function(){setChatOpen(true);}
+    },
+      h("button",{
+        className:"assistant-bubble-close",
+        title:"Ocultar asistente",
+        onClick:function(e){e.stopPropagation(); setHidden(true);}
+      },"✕"),
+      alertas.length > 0 && h("span",{style:{fontWeight:"bold",color:"#d97706",marginRight:4}},"⚠️"),
+      displayMsg
+    ),
+
+    h("button",{
+      className:"assistant-avatar-btn",
+      onClick:function(){setChatOpen(!chatOpen);},
+      title:"Hacé click para hablar con el asistente"
+    },
+      h("div",{className:"assistant-avatar"}, "👷‍♂️")
+    )
+  );
+}
+
+/* --- App --- */
+function App(){
+  var liS=useState(false);var loggedIn=liS[0];var setLoggedIn=liS[1];
+  var trS=useState([]);var trabajos=trS[0];var setTrabajos=trS[1];
+  var loS=useState(true);var loading=loS[0];var setLoading=loS[1];
+  var siS=useState(null);var savingId=siS[0];var setSavingId=siS[1];
+  var svS=useState(false);var saving=svS[0];var setSaving=svS[1];
+  var atS=useState("trabajos");var activeTab=atS[0];var setActiveTab=atS[1];
+  var cmS=useState(null);var cuotasModal=cmS[0];var setCuotasModal=cmS[1];
+  var edS=useState(null);var editObraModal=edS[0];var setEditObraModal=edS[1];
+  var aeS=useState("");var apiError=aeS[0];var setApiError=aeS[1];
+  var bqS=useState("");var busqueda=bqS[0];var setBusqueda=bqS[1];
+  var maS=useState(false);var mostrarArch=maS[0];var setMostrarArch=maS[1];
+
+  /* Toasts & PDF Modal State */
+  var [toasts, setToasts] = useState([]);
+  var [pdfModal, setPdfModal] = useState(null); // { url, title }
+
+  /* Dropbox drag & drop state */
+  var [dragActive, setDragActive] = useState(false); // muestra overlay "suelte su archivo aquí"
+  var [dropboxPick, setDropboxPick] = useState(null); // { link, name } pendiente de asignar a una obra
+  var dragCounterRef = useRef(0);
+
+  function showToast(message, type) {
+    var id = Date.now() + Math.random();
+    setToasts(function(prev) {
+      return prev.concat([{ id: id, message: message, type: type }]);
+    });
+    playPopupSound();
+    setTimeout(function() {
+      setToasts(function(prev) {
+        return prev.filter(function(t) { return t.id !== id; });
+      });
+    }, 2500);
+  }
+
+  /* --- Dropbox: detectar drag sobre la ventana y abrir el Chooser oficial de Dropbox ---
+     Nota: el navegador solo puede leer el archivo local que se arrastra (no un enlace de
+     Dropbox), así que al soltar abrimos el selector oficial de Dropbox para que el usuario
+     confirme el mismo archivo y obtengamos el enlace real para compartir. */
+  function openDropboxChooser(){
+    if(typeof Dropbox === "undefined" || !Dropbox.choose){
+      showToast("Falta configurar la app key de Dropbox", "warning");
+      return;
+    }
+    Dropbox.choose({
+      linkType: "direct",
+      multiselect: false,
+      extensions: ['.pdf','.doc','.docx','.jpg','.jpeg','.png'],
+      success: function(files){
+        if(files && files[0]){
+          setDropboxPick({link: files[0].link, name: files[0].name});
+        }
+      },
+      cancel: function(){}
+    });
+  }
+
+  useEffect(function(){
+    function hasFiles(e){
+      return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types||[], "Files") !== -1;
+    }
+    function onDragEnter(e){
+      if(!hasFiles(e)) return;
+      e.preventDefault();
+      dragCounterRef.current += 1;
+      setDragActive(true);
+    }
+    function onDragOver(e){
+      if(!hasFiles(e)) return;
+      e.preventDefault();
+    }
+    function onDragLeave(e){
+      if(!hasFiles(e)) return;
+      e.preventDefault();
+      dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+      if(dragCounterRef.current === 0) setDragActive(false);
+    }
+    function onDrop(e){
+      if(!hasFiles(e)) return;
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setDragActive(false);
+      /* El drop en sí solo confirma la intención; el enlace real de Dropbox
+         se obtiene abriendo el Chooser oficial (requiere elegirlo ahí). */
+      openDropboxChooser();
+    }
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return function(){
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  },[]);
+
+  function handleAsignarPresupuesto(obraId){
+    var updated = trabajos.map(function(t){
+      return t.id===obraId ? merge(t,{presupuestoUrl: dropboxPick.link}) : t;
+    });
+    setTrabajos(updated);
+    updateRemote(updated.filter(function(t){return t.id===obraId;})[0]);
+    setDropboxPick(null);
+    showToast("Presupuesto de Dropbox asignado", "success");
+  }
+
+  var emptyForm={fecha:todayStr(),obra:"",descripcion:"",presupuestoUrl:"",estado:"pendiente",monto:"",anticipo:"",cantCuotas:"1",anticipoPagado:true,moneda:"ARS"};
+  var fmS=useState(emptyForm);var form=fmS[0];var setForm=fmS[1];
+  var sdS=useState(false);var saved=sdS[0];var setSaved=sdS[1];
+
+  var loadTrabajos=useCallback(function(){
+    setLoading(true);setApiError("");
+    api.get("getAll").then(function(res){
+      if(res.error){setApiError("Error: "+res.error);setTrabajos([]);}
+      else {
+        var ts=(res.trabajos||[]).map(function(t){
+          return Object.assign({},t,{fecha:normFecha(t.fecha)});
+        });
+        setTrabajos(ts);
+      }
+      setLoading(false);
+    }).catch(function(){setApiError("No se pudo conectar con la API.");setLoading(false);});
+  },[]);
+
+  useEffect(function(){if(loggedIn)loadTrabajos();},[loggedIn]);
+
+  /* Background Barrio Resolver: pre-fetches barrios in background upon login */
+  var cobrosBackground = useMemo(function(){
+    var list = [];
+    trabajos.forEach(function(t){
+      (t.cuotas||[]).forEach(function(c){
+        if(c.pagada) list.push({obra:t.obra, monto:parseMoney(c.monto), fecha:c.fechaPago||c.fecha||t.fecha, tipo:"cuota", moneda:t.moneda||"ARS"});
+      });
+      if(t.anticipoPagado && parseMoney(t.anticipo)>0){
+        list.push({obra:t.obra, monto:parseMoney(t.anticipo), fecha:t.fechaPagoAnticipo||t.fecha, tipo:"anticipo", moneda:t.moneda||"ARS"});
+      }
+      if(t.pagoPagado && parseMoney(t.anticipo)===0){
+        list.push({obra:t.obra, monto:parseMoney(t.monto), fecha:t.fechaPagoFull||t.fecha, tipo:"pago_unico", moneda:t.moneda||"ARS"});
+      }
+    });
+    return list;
+  }, [trabajos]);
+  useBarrioResolver(trabajos, cobrosBackground, "ARS");
+
+  function setField(k,v){setForm(function(f){return setKey(f,k,v);});}
+
+  function calcCuotas(monto,anticipo,cant,fecha){
+    var s=parseMoney(monto)-parseMoney(anticipo);
+    var n=Math.max(1,parseInt(cant)||1);
+    return Array.from({length:n},function(_,i){
+      return {id:i+1,fecha:cuotaDate(fecha||todayStr(),i),indefinida:false,monto:Math.round(s/n),pagada:false,nroFactura:"",fechaPago:""};
+    });
+  }
+
+  function handleAdd(){
+    if(!form.obra.trim()) return;
+    setSaving(true);
+    var nuevo=merge(form,{
+      id:String(Date.now()),monto:parseMoney(form.monto),anticipo:parseMoney(form.anticipo),
+      cantCuotas:parseInt(form.cantCuotas)||1,facturado:false,nroFactura:"",
+      anticipoPagado:!!form.anticipoPagado,facturaAnticipo:"",pagoPagado:false,facturaFull:"",
+      moneda:form.moneda||"ARS",
+      fechaPagoAnticipo: form.anticipoPagado ? form.fecha : "",
+      cuotas:calcCuotas(form.monto,form.anticipo,form.cantCuotas,form.fecha)
+    });
+    api.post("save",{data:nuevo}).then(function(res){
+      if(res.ok){
+        setTrabajos(function(p){return[nuevo].concat(p);});
+        setForm(emptyForm);
+        setSaved(true);
+        showToast("Obra nueva agregada", "success");
+        setTimeout(function(){setSaved(false);},2000);
+      }
+      else setApiError("Error al guardar: "+res.error);
+      setSaving(false);
+    }).catch(function(){setApiError("Error de conexión.");setSaving(false);});
+  }
+
+  function updateRemote(upd){
+    setSavingId(upd.id);
+    api.post("update",{data:upd}).then(function(res){
+      if(!res.ok){
+        setApiError("Error al actualizar.");
+      }
+      setSavingId(null);
+    })
+    .catch(function(){setApiError("Error.");setSavingId(null);});
+  }
+
+  function handleDelete(id){
+    if(!window.confirm("¿Eliminar este trabajo?")) return;
+    setSavingId(id);
+    api.post("delete",{id:id}).then(function(res){
+      if(res.ok){
+        setTrabajos(function(t){return t.filter(function(x){return x.id!==id;});});
+        showToast("Obra eliminada", "warning");
+      }
+      else setApiError("Error al eliminar.");
+      setSavingId(null);
+    }).catch(function(){setApiError("Error.");setSavingId(null);});
+  }
+
+  function handleStatus(id,estado){
+    var updated=trabajos.map(function(t){return t.id===id?merge(t,{estado:estado}):t;});
+    setTrabajos(updated);
+    updateRemote(updated.filter(function(t){return t.id===id;})[0]);
+    showToast("Cambios guardados", "info");
+  }
+
+  function handleSaveCuotas(id,cuotas,anticipo,factAnt,antPag,pagoPagado,factFull){
+    var prevWork = trabajos.find(function(t){ return t.id === id; });
+    if(!prevWork) return;
+
+    /* Impute Dates comparison */
+    var nextFechaPagoAnticipo = prevWork.fechaPagoAnticipo || "";
+    if (antPag && !prevWork.anticipoPagado) {
+      nextFechaPagoAnticipo = todayStr();
+      showToast("Pago registrado", "warning");
+    } else if (!antPag) {
+      nextFechaPagoAnticipo = "";
+    } else if (antPag && !nextFechaPagoAnticipo) {
+      nextFechaPagoAnticipo = prevWork.fecha || todayStr();
+    }
+
+    var nextFechaPagoFull = prevWork.fechaPagoFull || "";
+    if (pagoPagado && !prevWork.pagoPagado) {
+      nextFechaPagoFull = todayStr();
+      showToast("Pago registrado", "warning");
+    } else if (!pagoPagado) {
+      nextFechaPagoFull = "";
+    } else if (pagoPagado && !nextFechaPagoFull) {
+      nextFechaPagoFull = prevWork.fecha || todayStr();
+    }
+
+    var didRegisterCuotaPayment = false;
+    var nextCuotas = cuotas.map(function(c){
+      var prevC = (prevWork.cuotas || []).find(function(pc){ return pc.id === c.id; });
+      var wasPagada = prevC ? !!prevC.pagada : false;
+      var fPago = c.fechaPago || (prevC ? prevC.fechaPago : "") || "";
+      if (c.pagada && !wasPagada) {
+        fPago = todayStr();
+        didRegisterCuotaPayment = true;
+      } else if (!c.pagada) {
+        fPago = "";
+      } else if (c.pagada && !fPago) {
+        fPago = c.fecha || todayStr();
+      }
+      return merge(c, { fechaPago: fPago });
+    });
+
+    if (didRegisterCuotaPayment) {
+      showToast("Pago registrado", "warning");
+    }
+
+    var updated=trabajos.map(function(t){
+      return t.id===id?merge(t,{cuotas:nextCuotas,anticipo:anticipo,facturaAnticipo:factAnt,anticipoPagado:antPag,pagoPagado:pagoPagado,facturaFull:factFull,fechaPagoAnticipo:nextFechaPagoAnticipo,fechaPagoFull:nextFechaPagoFull}):t;
+    });
+    setTrabajos(updated);
+    updateRemote(updated.filter(function(t){return t.id===id;})[0]);
+    setCuotasModal(null);
+  }
+
+  function handleSaveEditObra(id, newFields){
+    var updated = trabajos.map(function(t){
+      if(t.id === id){
+        return merge(t, {
+          obra: newFields.obra,
+          descripcion: newFields.descripcion,
+          monto: newFields.monto,
+          fecha: newFields.fecha,
+          moneda: newFields.moneda,
+          estado: newFields.estado,
+          presupuestoUrl: newFields.presupuestoUrl
+        });
+      }
+      return t;
+    });
+    setTrabajos(updated);
+    updateRemote(updated.filter(function(t){return t.id===id;})[0]);
+    setEditObraModal(null);
+    showToast("Cambios guardados", "info");
+  }
+
+  function handleDismissAlert(alertInfo) {
+    var updated = trabajos.map(function(t){
+      if(t.id === alertInfo.obraId){
+        if(alertInfo.tipo === "pago"){
+          var updatedCuotas = (t.cuotas || []).map(function(c){
+            if(t.id + "-" + c.id === alertInfo.id){
+              return merge(c, { alertaLeida: true });
+            }
+            return c;
+          });
+          return merge(t, { cuotas: updatedCuotas });
+        } else if(alertInfo.tipo === "factura") {
+          return merge(t, { facturaAlertaLeida: true });
+        }
+      }
+      return t;
+    });
+    setTrabajos(updated);
+    var target = updated.find(function(t){ return t.id === alertInfo.obraId; });
+    if(target){
+      updateRemote(target);
+      showToast("Alerta marcada como leída", "info");
+    }
+  }
+
+  function handleDismissAllAlerts() {
+    if(alertas.length === 0) return;
+    var updated = trabajos.map(function(t){
+      var updatedCuotas = (t.cuotas || []).map(function(c){
+        return merge(c, { alertaLeida: true });
+      });
+      return merge(t, { cuotas: updatedCuotas, facturaAlertaLeida: true });
+    });
+    setTrabajos(updated);
+    updated.forEach(function(t){ updateRemote(t); });
+    showToast("Todas las alertas fueron marcadas como leídas", "success");
+  }
+
+  var [groupOpenMap, setGroupOpenMap] = useState({});
+  var [ungroupedKeys, setUngroupedKeys] = useState({});
+
+  var trabajosFiltrados=useMemo(function(){
+    var list=trabajos.slice().sort(function(a,b){
+      var fa=normFecha(a.fecha||"");var fb=normFecha(b.fecha||"");
+      if(fb>fa) return 1; if(fb<fa) return -1; return 0;
+    });
+    list=list.filter(function(t){return mostrarArch?esArchivado(t):!esArchivado(t);});
+    if(busqueda.trim()){
+      var q=busqueda.trim().toLowerCase();
+      list=list.filter(function(t){return(t.obra||"").toLowerCase().indexOf(q)!==-1||(t.descripcion||"").toLowerCase().indexOf(q)!==-1;});
+    }
+    return list;
+  },[trabajos,busqueda,mostrarArch]);
+
+  /* Build grouped structure from trabajosFiltrados */
+  var trabajosGrupos=useMemo(function(){
+    var map={};
+    trabajosFiltrados.forEach(function(t){
+      var key=normalizeAddress(t.obra||"");
+      if(!map[key]) map[key]={key:key,label:t.obra||"",items:[],maxFecha:""};
+      map[key].items.push(t);
+      var f=normFecha(t.fecha||"");
+      if(f>map[key].maxFecha) { map[key].maxFecha=f; map[key].label=t.obra||""; }
+    });
+    var groups=Object.values(map);
+    groups.sort(function(a,b){ return b.maxFecha<a.maxFecha?-1:b.maxFecha>a.maxFecha?1:0; });
+    return groups;
+  },[trabajosFiltrados]);
+
+  var totalPendienteARS=useMemo(function(){
+    return trabajos.filter(function(t){return !esArchivado(t)&&(t.moneda||"ARS")==="ARS";}).reduce(function(sum,t){
+      return sum+calcTotals(t).pendiente;
+    },0);
+  },[trabajos]);
+  var totalPendienteUSD=useMemo(function(){
+    return trabajos.filter(function(t){return !esArchivado(t)&&t.moneda==="USD";}).reduce(function(sum,t){
+      return sum+calcTotals(t).pendiente;
+    },0);
+  },[trabajos]);
+  var hayUSD=useMemo(function(){return trabajos.some(function(t){return t.moneda==="USD";});},[trabajos]);
+
+  var archivadosCount=useMemo(function(){return trabajos.filter(function(t){return esArchivado(t);}).length;},[trabajos]);
+
+  /* Alertas Filtrando las marcadas como leídas */
+  var alertas=useMemo(function(){
+    var arr=[];
+    trabajos.forEach(function(t){
+      (t.cuotas||[]).forEach(function(c){
+        if(!c.pagada&&!c.indefinida&&!c.alertaLeida){
+          var diff=Math.ceil((new Date(c.fecha)-new Date())/86400000);
+          if(diff<=30) arr.push({tipo:"pago",obraId:t.id,trabajo:t.obra,fecha:c.fecha,monto:c.monto,diff:diff,id:t.id+"-"+c.id});
+        }
+      });
+      if(!t.facturado&&t.estado==="finalizado"&&!t.facturaAlertaLeida) {
+        arr.push({tipo:"factura",obraId:t.id,trabajo:t.obra,diff:999,id:"fac-"+t.id});
+      }
+    });
+    arr.sort(function(a,b){return a.diff-b.diff;});
+    return arr;
+  },[trabajos]);
+
+  var iS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
+  var lS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:5};
+
+  if(!loggedIn) return h(Login,{onLogin:function(){ playLoginSound(); setLoggedIn(true); }});
+
+  return h("div",{style:{minHeight:"100vh",background:T.bg,fontFamily:"'DM Sans',sans-serif",paddingBottom:52,overflowX:"hidden"}},
+
+    /* Toast elements render */
+    toasts.length > 0 && h("div",{className:"toast-container"},
+      toasts.map(function(toast){
+        var icon = toast.type === "success" ? "\u2714" : (toast.type === "warning" ? "\ud83d\udcb5" : "\ud83d\udcbe");
+        var extraClass = toast.type === "success" ? "toast-success" : (toast.type === "warning" ? "toast-warning" : "toast-info");
+        return h("div",{key:toast.id,className:"toast-item "+extraClass},
+          h("div",{className:"toast-icon"}, icon),
+          h("div",{className:"toast-text"}, toast.message)
+        );
+      })
+    ),
+
+    /* header */
+    h("div",{className:"hdr-container",style:{background:"linear-gradient(135deg,#0f172a,#1e293b)",borderBottom:"1px solid #334155",padding:"0 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 18px rgba(15,23,42,.35)",overflow:"visible",height:46}},
+      /* logo — overflows downward, top-aligned with bar */
+      h("div",{className:"hdr-brand",style:{display:"flex",alignItems:"flex-start",flexShrink:0}},
+        h("div",{style:{flexShrink:0,filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.5))"},className:"hdr-logo-overflow"},
+          h(LogoImg,{size:81,id:"hdr-logo",fbId:"hdr-logo-fb"})
+        )
+      ),
+      /* right section: on desktop = horiz row (sep+name+tabs), on mobile = vert column (name on top, tabs below) */
+      h("div",{className:"hdr-mobile-right",style:{display:"flex",alignItems:"center",flexGrow:1,minWidth:0,height:"100%"}},
+        /* separator: desktop only */
+        h("div",{className:"hdr-sep-desktop",style:{width:1,height:22,background:"rgba(255,255,255,0.15)",margin:"0 12px",flexShrink:0}}),
+        /* app name */
+        h("span",{className:"hdr-title title-font",style:{fontSize:15,color:"#f8fafc",whiteSpace:"nowrap",letterSpacing:"-0.01em",opacity:0.88}},"GestionObra 2.0"),
+        /* tabs + icon buttons */
+        h("div",{className:"hdr-tabs",style:{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",marginLeft:"auto",flexShrink:0}},
+          [["trabajos","Trabajos"],["alertas","Alertas"],["clientes","Clientes y Facturas"],["balance","Balance"]].map(function(kv){
+            var sel = activeTab===kv[0];
+            return h("button",{key:kv[0],onClick:function(){setActiveTab(kv[0]);},className:"hdr-btn",style:{padding:"6px 12px",borderRadius:8,border:sel?"1px solid rgba(255,255,255,0.2)":"1px solid transparent",cursor:"pointer",fontSize:12.5,background:sel?"rgba(255,255,255,0.15)":"transparent",color:sel?"#ffffff":"#94a3b8",position:"relative",fontFamily:"inherit",fontWeight:sel?700:500,transition:"all .15s"}},
+              kv[1],
+              kv[0]==="alertas"&&alertas.length>0&&h("span",{style:{position:"absolute",top:3,right:4,width:7,height:7,background:"#ef4444",borderRadius:"50%",animation:"pulse 2s infinite"}})
+            );
+          }),
+          h("button",{onClick:loadTrabajos,className:"hdr-btn hdr-icon-btn",title:"Actualizar datos",style:{padding:"5px 9px",borderRadius:8,border:"1px solid #475569",background:"rgba(255,255,255,0.05)",cursor:"pointer",fontSize:16,color:"#cbd5e1",fontFamily:"inherit",lineHeight:1}},"↻"),
+          h("button",{onClick:function(){setLoggedIn(false);},className:"hdr-btn hdr-icon-btn",title:"Cerrar sesión",style:{background:"rgba(255,255,255,0.05)",border:"1px solid #475569",borderRadius:8,padding:"5px 9px",color:"#94a3b8",cursor:"pointer",fontSize:15,fontFamily:"inherit",lineHeight:1}},"⇥")
+        )
+      )
+    ),
+
+    apiError&&h("div",{style:{background:"#fef2f2",borderBottom:"1px solid #fecaca",padding:"7px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+      h("span",{style:{color:"#dc2626",fontSize:12}},"Error: "+apiError),
+      h("button",{onClick:function(){setApiError("");},style:{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:15}},"X")
+    ),
+
+    /* tabs */
+    h("div", { key: activeTab, style: { animation: "slideTab 0.25s ease-out forwards", willChange: "transform, opacity" } },
+      activeTab==="balance"
+        ?h(BalanceTab,{trabajos:trabajos})
+        :activeTab==="clientes"
+          ?h(ClientesTab,{trabajos:trabajos})
+          :activeTab==="alertas"
+            ?h("div",{className:"tab-content-wrap",style:{padding:14,maxWidth:760,margin:"0 auto"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}},
+              h("h2",{className:"title-font",style:{fontSize:20,margin:0,color:T.text}},"Alertas Activas"),
+              alertas.length>0&&h("button",{
+                onClick:handleDismissAllAlerts,
+                style:{padding:"7px 14px",borderRadius:8,background:"#eff6ff",border:"1px solid #bfdbfe",color:"#2563eb",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}
+              },"✓ Marcar todo como leído")
+            ),
+            alertas.length===0
+              ?h("div",{style:{textAlign:"center",padding:44,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},h("p",{style:{margin:0}},"Sin alertas pendientes"))
+              :alertas.map(function(a){
+                  return h("div",{key:a.id,style:{background:T.surface,border:"1px solid "+(a.tipo==="factura"?"#fde68a":a.diff<=7?"#fecaca":"#bfdbfe"),borderRadius:11,padding:"12px 15px",marginBottom:9,display:"flex",alignItems:"center",gap:11}},
+                    h("div",{style:{width:34,height:34,borderRadius:9,background:a.tipo==="factura"?"#fef9c3":a.diff<=7?"#fef2f2":"#eff6ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}},
+                      a.tipo==="factura"?"F":a.diff<=0?"!":a.diff<=7?"?":"C"
+                    ),
+                    h("div",{style:{flex:1,minWidth:0}},
+                      h("p",{style:{margin:0,fontWeight:600,color:T.text,fontSize:13}},a.trabajo),
+                      a.tipo==="pago"
+                        ?h("p",{style:{margin:"2px 0 0",color:T.textMid,fontSize:12}},"$ "+fmt(a.monto)+" - "+(a.diff<=0?"VENCIDA hace "+Math.abs(a.diff)+" días":"Vence en "+a.diff+" día"+(a.diff!==1?"s":"")+" ("+fmtFecha(a.fecha)+")"))
+                        :h("p",{style:{margin:"2px 0 0",color:"#d97706",fontSize:12}},"Trabajo finalizado sin facturar")
+                    ),
+                    h("button",{
+                      onClick:function(){ handleDismissAlert(a); },
+                      style:{padding:"6px 12px",borderRadius:8,border:"1px solid "+T.border,background:T.surfaceAlt,color:T.textMid,fontSize:11,cursor:"pointer",fontWeight:600}
+                    }, "Marcar leída")
+                  );
+                })
+          )
+        :h("div",{className:"layout"},
+            /* left panel */
+            h("div",{className:"lpanel"},
+              h("h3",{className:"title-font",style:{fontSize:16,margin:"0 0 13px",color:T.text}},"Nueva Entrada"),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"FECHA"),h("input",{type:"date",value:form.fecha,onChange:function(e){setField("fecha",e.target.value);},style:iS})),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"OBRA"),h("input",{value:form.obra,onChange:function(e){setField("obra",e.target.value);},placeholder:"Nombre de la obra",style:iS})),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"DESCRIPCION"),h("textarea",{value:form.descripcion,onChange:function(e){setField("descripcion",e.target.value);},placeholder:"Detalles...",rows:2,style:merge(iS,{resize:"vertical",lineHeight:1.5})})),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:form.presupuestoUrl||"",onChange:function(e){setField("presupuestoUrl",e.target.value);},placeholder:"https://www.dropbox.com/... o Google Drive link",style:iS})),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"ESTADO"),
+                h("select",{value:form.estado,onChange:function(e){setField("estado",e.target.value);},style:merge(iS,{cursor:"pointer"})},
+                  Object.keys(STATUS).map(function(k){return h("option",{key:k,value:k},STATUS[k].label);})
+                )
+              ),
+              h("div",{style:{marginBottom:10}},
+                h("label",{style:lS},"MONEDA"),
+                h("div",{style:{display:"flex",gap:8}},
+                  [["ARS","$ Pesos"],["USD","U$S Dolares"]].map(function(opt){
+                    var sel=((form.moneda||"ARS")===opt[0]);
+                    return h("button",{key:opt[0],onClick:function(){setField("moneda",opt[0]);},
+                      style:{flex:1,padding:"9px 8px",borderRadius:8,border:"2px solid "+(sel?(opt[0]==="USD"?"#1d4ed8":"#2563eb"):T.border),
+                        background:sel?(opt[0]==="USD"?"#eff6ff":"#eff6ff"):T.surfaceAlt,
+                        color:sel?(opt[0]==="USD"?"#1d4ed8":"#2563eb"):T.textMid,
+                        fontWeight:sel?700:500,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},
+                      opt[1]
+                    );
+                  })
+                )
+              ),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},(form.moneda==="USD"?"MONTO (U$S)":"MONTO ($)")),h(MoneyInput,{value:form.monto,onChange:function(v){setField("monto",v);},style:iS})),
+              h("div",{style:{marginBottom:parseMoney(form.anticipo)>0?6:10}},h("label",{style:lS},(form.moneda==="USD"?"ANTICIPO (U$S)":"ANTICIPO ($)")),h(MoneyInput,{value:form.anticipo,onChange:function(v){setField("anticipo",v); if(form.anticipoPagado===undefined)setField("anticipoPagado",true);},style:iS})),
+              parseMoney(form.anticipo)>0&&h("button",{
+                onClick:function(){setField("anticipoPagado",!form.anticipoPagado);},
+                style:{
+                  width:"100%",marginBottom:10,padding:"9px 14px",borderRadius:8,cursor:"pointer",
+                  fontSize:13,fontWeight:700,fontFamily:"inherit",textAlign:"left",
+                  display:"flex",alignItems:"center",gap:8,
+                  background: form.anticipoPagado?"#dcfce7":"#fef9ec",
+                  border: "1px solid "+(form.anticipoPagado?"#86efac":"#fde68a"),
+                  color: form.anticipoPagado?"#15803d":"#b45309"
+                }
+              },
+                h("span",{style:{fontSize:15}}, form.anticipoPagado?"\u2713":"\u25CB"),
+                h("span",null, form.anticipoPagado?"Anticipo cobrado":"Anticipo pendiente"),
+                h("span",{style:{marginLeft:"auto",fontSize:11,opacity:.7}}, form.anticipoPagado?"No suma al pendiente":"Suma al pendiente")
+              ),
+              parseMoney(form.monto)>0&&h("div",{style:{background:T.accentBg,borderRadius:8,padding:"8px 11px",marginBottom:10,fontSize:12,border:"1px solid #bfdbfe"}},
+                h("div",{style:{display:"flex",justifyContent:"space-between",color:T.textMid,marginBottom:2}},
+                  h("span",null,"Saldo"),h("span",{style:{color:T.accent,fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(parseMoney(form.monto)-parseMoney(form.anticipo),form.moneda))
+                ),
+                parseInt(form.cantCuotas)>0&&h("div",{style:{display:"flex",justifyContent:"space-between",color:T.textMid}},
+                  h("span",null,"Por cuota"),h("span",{style:{color:"#059669",fontWeight:700,fontVariantNumeric:"tabular-nums"}},fmtMoney(Math.round((parseMoney(form.monto)-parseMoney(form.anticipo))/(parseInt(form.cantCuotas)||1)),form.moneda))
+                )
+              ),
+              h("div",{style:{marginBottom:13}},h("label",{style:lS},"CANT. CUOTAS"),h("input",{type:"number",min:1,max:60,value:form.cantCuotas,onChange:function(e){setField("cantCuotas",e.target.value);},style:iS})),
+              h("button",{onClick:handleAdd,disabled:saving,style:{width:"100%",padding:"11px",background:saved?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:600,cursor:saving?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 14px rgba(37,99,235,.22)",fontFamily:"inherit"}},
+                saving?[h(Spinner,{key:"sp",size:16,color:"white"})," Guardando..."]:saved?"Guardado":"+ Agregar Trabajo"
+              ),
+              h("div",{style:{marginTop:13,padding:"7px 11px",background:T.surfaceAlt,borderRadius:8,border:"1px solid "+T.border,textAlign:"center"}},
+                h("p",{style:{color:T.textSoft,fontSize:11,margin:0}},"Google Sheets - "+trabajos.length+" trabajos")
+              )
+            ),
+
+            /* right panel */
+            h("div",{className:"rpanel"},
+              /* Sticky Search and Filter Wrapper with top padding to block elements passing behind */
+              h("div",{style:{position:"sticky",top:0,zIndex:10,background:T.bg,paddingTop:"14px",paddingBottom:9,marginBottom:2}},
+                h("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:6}},
+                  h("div",{style:{position:"relative",flex:1}},
+                    h("input",{type:"text",value:busqueda,onChange:function(e){setBusqueda(e.target.value);},placeholder:"Buscar obra o descripción...",style:{width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"99px 35px 9px 13px".replace("99px","9px"),color:T.text,fontSize:13,outline:"none",boxShadow:"0 1px 4px rgba(0,0,0,.05)",fontFamily:"inherit"}}),
+                    busqueda&&h("button",{onClick:function(){setBusqueda("");},style:{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:T.textSoft,fontSize:15,lineHeight:1}},"X")
+                  ),
+                  h("button",{
+                    onClick:function(){setMostrarArch(function(v){return !v;});setBusqueda("");},
+                    style:{flexShrink:0,padding:"8px 12px",borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",
+                      background:mostrarArch?"#1e293b":T.surfaceAlt,border:"1px solid "+(mostrarArch?"#334155":T.border),
+                      color:mostrarArch?"#e2e8f0":T.textMid,transition:"all .2s"}
+                  },
+                    mostrarArch?"Ver activas":"Archivadas"+(archivadosCount>0?" ("+archivadosCount+")":"")
+                  )
+                ),
+                h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
+                  mostrarArch
+                    ?(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" archivada"+(trabajosFiltrados.length!==1?"s":""))
+                    :(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" activa"+(trabajosFiltrados.length!==1?"s":"")+(busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"")+" - más reciente primero")
+                )
+              ),
+              loading
+                ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,display:"flex",flexDirection:"column",alignItems:"center",gap:13}},h(Spinner,{size:28}),h("p",null,"Cargando..."))
+                :trabajosFiltrados.length===0
+                  ?h("div",{style:{textAlign:"center",padding:46,color:T.textSoft,background:T.surface,borderRadius:14,border:"1px solid "+T.border}},
+                      h("p",{style:{margin:0,fontSize:14,color:T.textMid}},busqueda?"Sin resultados para \""+busqueda+"\"":mostrarArch?"No hay obras archivadas":"Sin trabajos registrados"),
+                      busqueda&&h("button",{onClick:function(){setBusqueda("");},style:{marginTop:9,padding:"6px 13px",background:T.accentBg,border:"1px solid #bfdbfe",borderRadius:8,color:T.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit"}},"Limpiar")
+                    )
+                  :trabajosGrupos.map(function(grp){
+                      /* Single item OR explicitly ungrouped → render card directly */
+                      if(grp.items.length===1||ungroupedKeys[grp.key]){
+                        return grp.items.map(function(t){
+                          return h(TrabajoCard,{key:t.id,t:t,saving:savingId===t.id,onDelete:handleDelete,onStatus:handleStatus,onCuotas:setCuotasModal,onEdit:setEditObraModal,onViewPdf:function(url,title){ setPdfModal({url:url,title:title}); }});
+                        });
+                      }
+                      /* Multi-item group → accordion */
+                      var isOpen = groupOpenMap[grp.key]!==false; /* default open */
+                      return h("div",{key:grp.key,style:{marginBottom:14,border:"1px solid "+T.border,borderRadius:16,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,.06)"}},
+                        /* Group header */
+                        h("div",{style:{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.surface,cursor:"pointer",userSelect:"none",borderBottom:isOpen?("1px solid "+T.border):"none"}},
+                          h("div",{onClick:function(){setGroupOpenMap(function(m){var n=Object.assign({},m);n[grp.key]=!isOpen;return n;});},style:{display:"flex",alignItems:"center",gap:10,flex:1}},
+                            h("div",{style:{width:28,height:28,borderRadius:8,background:T.accentBg,border:"1px solid #bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.accent,flexShrink:0}},grp.items.length),
+                            h("div",null,
+                              h("p",{className:"title-font",style:{margin:0,fontWeight:700,fontSize:14,color:T.text}},grp.label),
+                              h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},grp.items.length+" obras con este nombre")
+                            ),
+                            h("span",{style:{marginLeft:"auto",color:T.textSoft,fontSize:12,transform:isOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .25s",display:"inline-block"}},"v")
+                          ),
+                          h("button",{
+                            onClick:function(){ setUngroupedKeys(function(m){var n=Object.assign({},m);n[grp.key]=true;return n;}); },
+                            style:{flexShrink:0,padding:"4px 10px",borderRadius:8,border:"1px solid "+T.border,background:T.surfaceAlt,color:T.textMid,fontSize:11,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}
+                          },"Desagrupar")
+                        ),
+                        isOpen&&h("div",{style:{padding:"8px 8px 4px",background:T.bg}},
+                          grp.items.map(function(t){
+                            return h(TrabajoCard,{key:t.id,t:t,saving:savingId===t.id,onDelete:handleDelete,onStatus:handleStatus,onCuotas:setCuotasModal,onEdit:setEditObraModal,onViewPdf:function(url,title){ setPdfModal({url:url,title:title}); },hideTitle:true});
+                          })
+                        )
+                      );
+                    })
+            )
+          )
+    ),
+
+    /* cuotas modal */
+    cuotasModal&&h(CuotasModal,{
+      trabajo:cuotasModal,
+      onSave:function(cuotas,ant,factAnt,antPag,pagoPagado,factFull){handleSaveCuotas(cuotasModal.id,cuotas,ant,factAnt,antPag,pagoPagado,factFull);},
+      onClose:function(){setCuotasModal(null);}
+    }),
+
+    /* edit obra modal */
+    editObraModal&&h(EditObraModal,{
+      trabajo:editObraModal,
+      onSave:function(newFields){handleSaveEditObra(editObraModal.id, newFields);},
+      onClose:function(){setEditObraModal(null);}
+    }),
+
+    /* pdf viewer modal */
+    pdfModal&&h("div",{className:"pdf-modal-container",style:{position:"fixed",inset:0,background:"rgba(10,15,32,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(8px)",padding:14,animation:"popupBackdropIn .22s ease forwards"}},
+      h("div",{className:"pdf-modal-box",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:18,width:"min(920px,96vw)",height:"85vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 25px 80px rgba(0,0,0,.4)",animation:"popupSlideIn .3s cubic-bezier(0.16,1,0.3,1) forwards"}},
+        h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 18px",borderBottom:"1px solid "+T.border,background:T.surfaceAlt}},
+          h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+            h("span",{style:{fontSize:18}},"📄"),
+            h("h3",{className:"title-font",style:{margin:0,fontSize:15,color:T.text}},"Presupuesto PDF — "+(pdfModal.title||"Obra"))
+          ),
+          h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+            h("a",{href:pdfModal.url,target:"_blank",rel:"noreferrer",style:{padding:"6px 12px",borderRadius:8,background:"#eff6ff",border:"1px solid #bfdbfe",color:"#2563eb",fontSize:12,fontWeight:600,textDecoration:"none"}},"Abrir enlace directo ↗"),
+            h("button",{onClick:function(){setPdfModal(null);},style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
+          )
+        ),
+        h("div",{style:{flex:1,background:"#f8fafc",position:"relative"}},
+          h("iframe",{src:formatPdfEmbedUrl(pdfModal.url),style:{width:"100%",height:"100%",border:"none"}})
+        )
+      )
+    ),
+
+    /* obra picker: elegir a qué obra asignar el presupuesto de Dropbox */
+    dropboxPick && h(ObraPickerModal,{
+      link: dropboxPick.link,
+      fileName: dropboxPick.name,
+      trabajos: trabajos,
+      onPick: handleAsignarPresupuesto,
+      onClose: function(){ setDropboxPick(null); }
+    }),
+
+    /* overlay de arrastre: aparece mientras se arrastra un archivo sobre la ventana */
+    dragActive && h("div",{className:"dropbox-overlay"},
+      h("div",{className:"dropbox-overlay-box"},
+        h("span",{style:{fontSize:46}},"📥"),
+        h("p",{className:"title-font",style:{margin:0,color:"#1e293b",fontSize:18}},"Suelte su archivo aquí"),
+        h("p",{style:{margin:0,color:"#64748b",fontSize:12,textAlign:"center",maxWidth:260}},"Al soltarlo se abrirá el selector de Dropbox para confirmar el archivo y tomar su enlace")
+      )
+    ),
+
+    /* botón flotante alternativo para adjuntar presupuesto desde Dropbox sin arrastrar */
+    h("button",{className:"dropbox-btn-fab",onClick:openDropboxChooser,title:"Adjuntar presupuesto desde Dropbox"},
+      h("span",null,"📥"),h("span",null,"Adjuntar de Dropbox")
+    ),
+
+    /* Assistant Widget */
+    h(AssistantWidget, {alertas: alertas, trabajos: trabajos}),
+
+    /* footer */
+    h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        h("div",{style:{width:8,height:8,borderRadius:"50%",background:"#4ade80",boxShadow:"0 0 6px #4ade80",animation:"pulse 2s infinite"}}),
+        h("span",{style:{color:"#94a3b8",fontSize:11,fontWeight:600}},
+          trabajos.length+" trabajos registrados"
+        )
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+          h("span",{style:{color:"#64748b",fontSize:11}},"Pendiente $:"),
+          h("span",{style:{color:totalPendienteARS>0?"#fbbf24":"#4ade80",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
+            "$ "+fmt(totalPendienteARS)
+          )
+        ),
+        hayUSD&&h("div",{style:{display:"flex",alignItems:"center",gap:6,paddingLeft:12,borderLeft:"1px solid #334155"}},
+          h("span",{style:{color:"#64748b",fontSize:11}},"Pendiente U$S:"),
+          h("span",{style:{color:totalPendienteUSD>0?"#fbbf24":"#4ade80",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
+            "U$S "+fmt(totalPendienteUSD)
+          )
+        )
+      )
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App,null));
+})();
+</script>
+</body>
+</html>
