@@ -3022,6 +3022,7 @@ function App(){
   var aeS=useState("");var apiError=aeS[0];var setApiError=aeS[1];
   var bqS=useState("");var busqueda=bqS[0];var setBusqueda=bqS[1];
   var maS=useState(false);var mostrarArch=maS[0];var setMostrarArch=maS[1];
+  var mfpS=useState(false);var mostrarFinPend=mfpS[0];var setMostrarFinPend=mfpS[1];
 
   /* Toasts & PDF Modal State */
   var [toasts, setToasts] = useState([]);
@@ -3342,12 +3343,15 @@ function App(){
       if(fb>fa) return 1; if(fb<fa) return -1; return 0;
     });
     list=list.filter(function(t){return mostrarArch?esArchivado(t):!esArchivado(t);});
+    if(mostrarFinPend){
+      list=list.filter(function(t){return t.estado==="finalizado" && calcTotals(t).pendiente>0;});
+    }
     if(busqueda.trim()){
       var q=busqueda.trim().toLowerCase();
       list=list.filter(function(t){return(t.obra||"").toLowerCase().indexOf(q)!==-1||(t.descripcion||"").toLowerCase().indexOf(q)!==-1;});
     }
     return list;
-  },[trabajos,busqueda,mostrarArch]);
+  },[trabajos,busqueda,mostrarArch,mostrarFinPend]);
 
   /* Build grouped structure from trabajosFiltrados */
   var trabajosGrupos=useMemo(function(){
@@ -3366,6 +3370,11 @@ function App(){
 
   var totalPendienteARS=useMemo(function(){
     return trabajos.filter(function(t){return !esArchivado(t)&&(t.moneda||"ARS")==="ARS";}).reduce(function(sum,t){
+      return sum+calcTotals(t).pendiente;
+    },0);
+  },[trabajos]);
+  var totalFinalizadosPendientesARS=useMemo(function(){
+    return trabajos.filter(function(t){return !esArchivado(t)&&(t.moneda||"ARS")==="ARS"&&t.estado==="finalizado";}).reduce(function(sum,t){
       return sum+calcTotals(t).pendiente;
     },0);
   },[trabajos]);
@@ -3431,7 +3440,7 @@ function App(){
         h("span",{className:"hdr-title title-font",style:{fontSize:15,color:"#f8fafc",whiteSpace:"nowrap",letterSpacing:"-0.01em",opacity:0.88}},"GestionObra 2.0"),
         /* tabs + icon buttons */
         h("div",{className:"hdr-tabs",style:{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",marginLeft:"auto",flexShrink:0}},
-          [["trabajos","Trabajos"],["alertas","Alertas"],["clientes","Clientes y Facturas"],["balance","Balance"]].map(function(kv){
+          [["trabajos","Trabajos"],["alertas","Alertas"],["balance","Balance"]].map(function(kv){
             var sel = activeTab===kv[0];
             return h("button",{key:kv[0],onClick:function(){setActiveTab(kv[0]);},className:"hdr-btn",style:{padding:"6px 12px",borderRadius:8,border:sel?"1px solid rgba(255,255,255,0.2)":"1px solid transparent",cursor:"pointer",fontSize:12.5,background:sel?"rgba(255,255,255,0.15)":"transparent",color:sel?"#ffffff":"#94a3b8",position:"relative",fontFamily:"inherit",fontWeight:sel?700:500,transition:"all .15s"}},
               kv[1],
@@ -3562,6 +3571,14 @@ function App(){
                       color:mostrarArch?"#e2e8f0":T.textMid,transition:"all .2s"}
                   },
                     mostrarArch?"Ver activas":"Archivadas"+(archivadosCount>0?" ("+archivadosCount+")":"")
+                  ),
+                  !mostrarArch && h("button",{
+                    onClick:function(){setMostrarFinPend(function(v){return !v;});},
+                    style:{flexShrink:0,padding:"8px 12px",borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",
+                      background:mostrarFinPend?"#1e293b":T.surfaceAlt,border:"1px solid "+(mostrarFinPend?"#334155":T.border),
+                      color:mostrarFinPend?"#e2e8f0":T.textMid,transition:"all .2s"}
+                  },
+                    mostrarFinPend?"Ver todos":"Terminados y Pendientes"
                   )
                 ),
                 h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
@@ -3664,10 +3681,6 @@ function App(){
       )
     ),
 
-    /* botón flotante alternativo para adjuntar presupuesto desde Dropbox sin arrastrar */
-    h("button",{className:"dropbox-btn-fab",onClick:openDropboxChooser,title:"Adjuntar presupuesto desde Dropbox"},
-      h("span",null,"📥"),h("span",null,"Adjuntar de Dropbox")
-    ),
 
     /* Assistant Widget */
     h(AssistantWidget, {alertas: alertas, trabajos: trabajos}),
@@ -3691,6 +3704,12 @@ function App(){
           h("span",{style:{color:"#64748b",fontSize:11}},"Pendiente U$S:"),
           h("span",{style:{color:totalPendienteUSD>0?"#fbbf24":"#4ade80",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
             "U$S "+fmt(totalPendienteUSD)
+          )
+        ),
+        totalFinalizadosPendientesARS>0&&h("div",{style:{display:"flex",alignItems:"center",gap:6,paddingLeft:12,borderLeft:"1px solid #334155"}},
+          h("span",{style:{color:"#64748b",fontSize:11}},"Finalizados p/cobrar $:"),
+          h("span",{style:{color:"#fbbf24",fontSize:16,fontWeight:700,fontVariantNumeric:"tabular-nums"}},
+            "$ "+fmt(totalFinalizadosPendientesARS)
           )
         )
       )
