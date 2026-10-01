@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>GestionObra 2.0</title>
+<title>GestionObra 3.0</title>
 <link rel="icon" type="image/png" href="favicon.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -38,14 +38,15 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
   from { opacity: 0; transform: scale(0.93) translateY(18px); }
   to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
+@keyframes fadeUrgente{0%,100%{opacity:1;background:#ef4444}50%{opacity:.45;background:#fca5a5}}
 @keyframes slideTab {
   from { opacity: 0; transform: translate3d(15px, 0, 0); }
   to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 .layout{display:flex;height:calc(100vh - 46px);overflow:hidden}
-.lpanel{width:276px;min-width:276px;background:#fff;border-right:1px solid #e2e8f0;padding:46px 14px 70px;overflow-y:auto;flex-shrink:0}
-.rpanel{flex:1;overflow-y:auto;padding:0 14px 70px} /* FIXED padding top to allow sticky banner to hide elements behind */
+.lpanel{width:276px;min-width:276px;background:#fff;border-right:1px solid #e2e8f0;padding:46px 14px 70px;overflow-y:auto;flex-shrink:0;scroll-behavior:smooth}
+.rpanel{flex:1;overflow-y:auto;padding:0 14px 70px;scroll-behavior:smooth} /* FIXED padding top to allow sticky banner to hide elements behind */
 .qmoney{display:flex;gap:14px;flex-shrink:0;margin-right:4px}
 .qmobile{display:none;gap:8px;margin-top:5px;flex-wrap:wrap}
 
@@ -729,6 +730,13 @@ function fmtFecha(ds){
 function addDays(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
 function addMonths(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().split("T")[0]; }
 function cuotaDate(base,i){ var first=addDays(base,30); return i===0?first:addMonths(first,i); }
+function calcCuotas(monto,anticipo,cant,fecha){
+  var s=parseMoney(monto)-parseMoney(anticipo);
+  var n=Math.max(1,parseInt(cant)||1);
+  return Array.from({length:n},function(_,i){
+    return {id:i+1,fecha:cuotaDate(fecha||todayStr(),i),indefinida:false,monto:Math.round(s/n),pagada:false,nroFactura:"",fechaPago:""};
+  });
+}
 var merge = function(a,b){ return Object.assign({},a,b); };
 function setKey(obj,key,val){ var r=Object.assign({},obj); r[key]=val; return r; }
 
@@ -1106,582 +1114,248 @@ function BalanceChart(props){
   );
 }
 
-/* --- ClientAfipModal --- */
-function ClientAfipModal(props){
-  var conceptoStr = props.conceptoStr || "Factura AFIP";
-  var onSuccess = props.onSuccess;
-  var onClose = props.onClose;
-  var defaultCliente = props.defaultCliente;
 
-  var rsS = useState(defaultCliente ? (defaultCliente.razonSocial || "") : ""); var razonSocial = rsS[0]; var setRazonSocial = rsS[1];
-  var cS = useState(defaultCliente ? (defaultCliente.cuit || "") : ""); var cuit = cS[0]; var setCuit = cS[1];
-  var ivS = useState(defaultCliente ? (defaultCliente.condicionIVA || "Responsable Inscripto") : "Responsable Inscripto"); var condicionIVA = ivS[0]; var setCondicionIVA = ivS[1];
-  var pvS = useState("2"); var puntoVenta = pvS[0]; var setPuntoVenta = pvS[1];
-  var lS = useState(false); var loading = lS[0]; var setLoading = lS[1];
-  var eS = useState(""); var error = eS[0]; var setError = eS[1];
-  var fdS = useState(todayStr()); var fechaEmision = fdS[0]; var setFechaEmision = fdS[1];
-  var cpS = useState("2"); var concepto = cpS[0]; var setConcepto = cpS[1]; // 1=Productos, 2=Servicios, 3=Ambos
-  var fetchingCuitS = useState(false); var fetchingCuit = fetchingCuitS[0]; var setFetchingCuit = fetchingCuitS[1];
-  var cuitMsgS = useState(null); var cuitMsg = cuitMsgS[0]; var setCuitMsg = cuitMsgS[1]; // { type: 'info'|'success'|'error', text: '' }
+/* --- PresupuestosTab --- */
+var PSTATUS = {
+  urgente:  {label:"A cotizar - Urgente", color:"#dc2626", bg:"#fef2f2", text:"#991b1b", dot:"#ef4444", anim:"fadeUrgente 2.8s ease-in-out infinite"},
+  cotizar:  {label:"A cotizar",           color:"#d97706", bg:"#fffbeb", text:"#92400e", dot:"#f59e0b", anim:undefined},
+  enviado:  {label:"Enviado",             color:"#0284c7", bg:"#f0f9ff", text:"#075985", dot:"#38bdf8", anim:undefined}
+};
 
-  var itS = useState(function(){
-    return [{ id: 1, descripcion: conceptoStr, cantidad: 1, monto: parseMoney(props.monto) }];
+function PresupuestosTab(props) {
+  var pS = useState(function(){
+    try { return JSON.parse(localStorage.getItem("presupuestos_v3")||"[]"); } catch(e){ return []; }
   });
-  var items = itS[0]; var setItems = itS[1];
-  
-  var scS = useState(function(){
-    try { return JSON.parse(localStorage.getItem("afip_clientes")||"[]"); } catch(e){ return []; }
-  });
-  var savedClients = scS[0]; var setSavedClients = scS[1];
-  var selS = useState(""); var selectedClientIdx = selS[0]; var setSelectedClientIdx = selS[1];
+  var presupuestos = pS[0]; var setPresupuestos = pS[1];
 
-  function addItem(){
-    setItems(items.concat([{ id: Date.now(), descripcion: "", cantidad: 1, monto: 0 }]));
+  var emptyForm = {direccion:"", descripcion:"", fechaLimite:todayStr(), monto:"", anticipo:"", cantCuotas:"1", moneda:"ARS"};
+  var formS = useState(emptyForm);
+  var form = formS[0]; var setForm = formS[1];
+
+  var editS = useState(null); var editando = editS[0]; var setEditando = editS[1];
+  var editFormS = useState(null); var editForm = editFormS[0]; var setEditForm = editFormS[1];
+
+  var acceptModalS = useState(null); var acceptModal = acceptModalS[0]; var setAcceptModal = acceptModalS[1];
+  var acceptFormS = useState({monto:"", anticipo:"", cantCuotas:"1", moneda:"ARS"});
+  var acceptForm = acceptFormS[0]; var setAcceptForm = acceptFormS[1];
+
+  function saveP(list) {
+    setPresupuestos(list);
+    localStorage.setItem("presupuestos_v3", JSON.stringify(list));
   }
 
-  function removeItem(id){
-    if(items.length <= 1) return;
-    setItems(items.filter(function(it){ return it.id !== id; }));
-  }
-
-  function updateItem(id, field, val){
-    setItems(items.map(function(it){ return it.id === id ? setKey(it, field, val) : it; }));
-  }
-
-  var totalMonto = items.reduce(function(sum, it){ return sum + parseMoney(it.monto); }, 0);
-
-  function handleSelectClient(e){
-    var idx = e.target.value;
-    setSelectedClientIdx(idx);
-    if(idx !== "" && savedClients[idx]){
-      var c = savedClients[idx];
-      setRazonSocial(c.razonSocial || "");
-      setCuit(c.cuit || "");
-      setCondicionIVA(c.condicionIVA || "Responsable Inscripto");
-      setCuitMsg({ type: "success", text: "Cliente seleccionado: " + (c.razonSocial || c.cuit) });
-    }
-  }
-
-  // Formateador automático de CUIT: XX-XXXXXXXX-X
-  function formatCuitStr(val){
-    if(!val) return "";
-    var clean = String(val).replace(/\D/g, "").slice(0, 11);
-    if(clean.length <= 2) return clean;
-    if(clean.length <= 10) return clean.slice(0, 2) + "-" + clean.slice(2);
-    return clean.slice(0, 2) + "-" + clean.slice(2, 10) + "-" + clean.slice(10);
-  }
-
-  // Función para autocompletar desde backend AFIP/ARCA según CUIT
-  async function fetchCuitData(valCuit){
-    var clean = (valCuit || "").replace(/\D/g, "");
-    if(!clean || clean.length < 10){
-      setCuitMsg({ type: "error", text: "Ingresá los 11 dígitos del CUIT (ej: 27-28681547-8)." });
+  function handleAdd() {
+    if(!form.direccion.trim() || !form.descripcion.trim()) {
+      alert("Direccion y descripcion son obligatorios.");
       return;
     }
+    var nuevo = {
+      id: String(Date.now()),
+      direccion: form.direccion,
+      descripcion: form.descripcion,
+      fechaLimite: form.fechaLimite,
+      monto: form.monto,
+      anticipo: form.anticipo,
+      cantCuotas: form.cantCuotas,
+      moneda: form.moneda,
+      estado: "cotizar",
+      fecha: todayStr()
+    };
+    saveP([nuevo].concat(presupuestos));
+    setForm(emptyForm);
+  }
 
-    // Verificar si ya está en savedClients localmente
-    var foundLocal = savedClients.find(function(sc){ return sc.cuit === clean; });
-    if(foundLocal){
-      if(foundLocal.razonSocial) setRazonSocial(foundLocal.razonSocial);
-      if(foundLocal.condicionIVA) setCondicionIVA(foundLocal.condicionIVA);
-      setCuitMsg({ type: "success", text: "Cliente guardado: " + (foundLocal.razonSocial || formatCuitStr(clean)) });
+  function handleChangeEstado(p, nuevoEstado) {
+    var newList = presupuestos.map(function(x) { return x.id === p.id ? Object.assign({}, x, {estado: nuevoEstado}) : x; });
+    saveP(newList);
+  }
+
+  function buildTrabajo(p, monto, anticipo, cantCuotas, moneda) {
+    return {
+      id: String(Date.now()),
+      obra: p.direccion,
+      descripcion: p.descripcion,
+      monto: parseMoney(monto),
+      anticipo: parseMoney(anticipo),
+      cantCuotas: parseInt(cantCuotas)||1,
+      estado: "pendiente",
+      facturado: false, nroFactura: "",
+      anticipoPagado: false, facturaAnticipo: "", pagoPagado: false, facturaFull: "",
+      moneda: moneda || "ARS",
+      fechaPagoAnticipo: "",
+      fecha: todayStr(),
+      cuotas: calcCuotas(monto, anticipo, cantCuotas, todayStr())
+    };
+  }
+
+  function handleAceptar(p) {
+    if(parseMoney(p.monto) > 0) {
+      if(!confirm("Aceptar presupuesto y enviarlo a Trabajos?")) return;
+      if(props.onAccept) props.onAccept(buildTrabajo(p, p.monto, p.anticipo, p.cantCuotas, p.moneda));
+      saveP(presupuestos.filter(function(x) { return x.id !== p.id; }));
     } else {
-      setCuitMsg({ type: "info", text: "Consultando padrón AFIP / ARCA..." });
-    }
-
-    setFetchingCuit(true);
-    try {
-      var res = await fetch("http://localhost:3000/persona", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuit: clean })
-      });
-      var data = await res.json();
-      if(data && data.success){
-        if(data.razonSocial) setRazonSocial(data.razonSocial);
-        if(data.condicionIVA) setCondicionIVA(data.condicionIVA);
-
-        if(data.razonSocial){
-          setCuitMsg({ type: "success", text: "ARCA: " + data.razonSocial + " (" + (data.condicionIVA || "RI") + ")" });
-        } else if(data.isPersonaFisica){
-          setCuitMsg({ type: "info", text: "Persona Física / Consumidor Final (CUIT " + formatCuitStr(clean) + "). Podés ingresar el nombre a mano." });
-        } else {
-          setCuitMsg({ type: "info", text: "CUIT " + formatCuitStr(clean) + " listo para facturar (" + (data.condicionIVA || "Consumidor Final") + ")." });
-        }
-      } else {
-        if(!foundLocal){
-          setCuitMsg({ type: "error", text: (data && data.error) ? data.error : "No se encontró el CUIT en el padrón ARCA. Podés ingresar la Razón Social a mano." });
-        }
-      }
-    } catch(err){
-      console.warn("No se pudo autocompletar CUIT desde server AFIP/ARCA:", err);
-      if(!foundLocal){
-        setCuitMsg({ type: "error", text: "Servidor local desconectado. Encendelo corriendo 'node server.js' en afip-backend." });
-      }
-    } finally {
-      setFetchingCuit(false);
+      setAcceptModal(p);
+      setAcceptForm({monto:"", anticipo:"", cantCuotas: p.cantCuotas||"1", moneda: p.moneda||"ARS"});
     }
   }
 
-  function handleCuitChange(val){
-    var formatted = formatCuitStr(val);
-    setCuit(formatted);
-    setCuitMsg(null);
-    var clean = formatted.replace(/\D/g, "");
-    if(clean.length === 11){
-      fetchCuitData(clean);
-    }
+  function handleConfirmAccept() {
+    if(!acceptModal) return;
+    if(parseMoney(acceptForm.monto) <= 0) { alert("Ingresa el monto acordado para continuar."); return; }
+    if(props.onAccept) props.onAccept(buildTrabajo(acceptModal, acceptForm.monto, acceptForm.anticipo, acceptForm.cantCuotas, acceptForm.moneda));
+    saveP(presupuestos.filter(function(x) { return x.id !== acceptModal.id; }));
+    setAcceptModal(null);
   }
 
-  async function handleFacturar(){
-    var cleanCuit = cuit.replace(/\D/g,"");
-    if(!cleanCuit || cleanCuit.length < 10){
-      setError("Por favor ingrese un CUIT válido (11 dígitos).");
-      return;
-    }
-    if(totalMonto <= 0){
-      setError("El monto total de la factura debe ser mayor a $0.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      var res = await fetch("http://localhost:3000/facturar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          PuntoVunto: parseInt(puntoVenta || 2),
-          PuntoVenta: parseInt(puntoVenta || 2),
-          monto: totalMonto,
-          items: items,
-          fechaEmision: fechaEmision,
-          concepto: parseInt(concepto),
-          cliente: {
-            CUIT: cleanCuit,
-            razonSocial: razonSocial || ("Cliente " + cleanCuit),
-            condicionIVA: condicionIVA
-          }
-        })
-      });
-      var data = await res.json();
-      if(!data.success){
-        throw new Error(data.error || "Error al comunicarse con AFIP");
-      }
-      
-      // Guardar o actualizar cliente en localStorage afip_clientes
-      var clientName = razonSocial || ("Cliente " + cleanCuit);
-      var updatedClients = savedClients.slice();
-      var existingIdx = updatedClients.findIndex(function(c){ return c.cuit === cleanCuit; });
-      if(existingIdx >= 0){
-        updatedClients[existingIdx] = merge(updatedClients[existingIdx], {
-          razonSocial: clientName,
-          cuit: cleanCuit,
-          condicionIVA: condicionIVA
-        });
-      } else {
-        updatedClients.push({
-          id: Date.now(),
-          razonSocial: clientName,
-          cuit: cleanCuit,
-          condicionIVA: condicionIVA
-        });
-      }
-      setSavedClients(updatedClients);
-      localStorage.setItem("afip_clientes", JSON.stringify(updatedClients));
-
-      // Guardar factura emitida en localStorage afip_facturas
-      try {
-        var prevFacturas = JSON.parse(localStorage.getItem("afip_facturas") || "[]");
-        var newFactura = {
-          id: "FAC-" + Date.now(),
-          numeroComprobante: data.numeroComprobante,
-          tipoComprobante: data.tipoComprobante || "C",
-          puntoVenta: puntoVenta || "2",
-          cae: data.cae,
-          vencimientoCAE: data.vencimientoCAE,
-          monto: totalMonto,
-          fechaEmision: data.fechaEmision || fechaEmision,
-          concepto: concepto,
-          clienteCuit: cleanCuit,
-          clienteRazonSocial: clientName,
-          clienteCondicionIVA: condicionIVA,
-          items: items,
-          pagado: true // por defecto pagado o según corresponda
-        };
-        prevFacturas.unshift(newFactura);
-        localStorage.setItem("afip_facturas", JSON.stringify(prevFacturas));
-      } catch(eFac){
-        console.error("Error al guardar factura emitida:", eFac);
-      }
-
-      onSuccess({
-        numeroComprobante: data.numeroComprobante,
-        cae: data.cae,
-        vencimientoCAE: data.vencimientoCAE,
-        montoFacturado: totalMonto
-      });
-    } catch(err){
-      setError(err.message || "Error al facturar con AFIP. Asegúrese de que el servidor local (server.js) esté encendido.");
-    } finally {
-      setLoading(false);
-    }
+  function handleEliminar(p) {
+    if(!confirm("Eliminar este presupuesto?")) return;
+    saveP(presupuestos.filter(function(x) { return x.id !== p.id; }));
   }
 
-  var inpS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10};
-  var lblS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:4};
+  function handleEditar(p) {
+    setEditando(p.id);
+    setEditForm({
+      direccion: p.direccion||"", descripcion: p.descripcion||"",
+      fechaLimite: p.fechaLimite||todayStr(), monto: p.monto||"",
+      anticipo: p.anticipo||"", cantCuotas: p.cantCuotas||"1", moneda: p.moneda||"ARS"
+    });
+  }
 
-  return h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(8px)",padding:10,animation:"popupBackdropIn .22s ease forwards"}},
-    h("div",{className:"mbox",style:{background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(560px,100%)",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 70px rgba(0,0,0,.35)",animation:"popupSlideIn .35s cubic-bezier(0.16,1,0.3,1) forwards"}},
-      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-        h("div",null,
-          h("h3",{className:"title-font",style:{color:T.text,fontSize:16,fontWeight:700,margin:0}},"Facturar con AFIP (ARCA)"),
-          h("p",{style:{color:T.textMid,fontSize:12,margin:"2px 0 0"}},"Emisión de comprobante electrónico")
+  function handleGuardarEdicion() {
+    if(!editForm.direccion.trim() || !editForm.descripcion.trim()) { alert("Direccion y descripcion son obligatorios."); return; }
+    var newList = presupuestos.map(function(x) { return x.id === editando ? Object.assign({}, x, editForm) : x; });
+    saveP(newList);
+    setEditando(null); setEditForm(null);
+  }
+
+  var inpStyle = {background:T.surfaceAlt,border:"1px solid "+T.border,color:T.text,padding:"8px 10px",borderRadius:8,fontSize:14,width:"100%",boxSizing:"border-box"};
+  var lblStyle = {display:"block",fontSize:12,color:T.textSoft,marginBottom:4,fontWeight:600};
+  var modalOverlay = {position:"fixed",inset:0,background:"rgba(10,15,32,.70)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(8px)",padding:10};
+  var modalBox = {background:T.surface,border:"1px solid "+T.border,borderRadius:16,padding:22,width:"min(500px,100%)",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 70px rgba(0,0,0,.30)"};
+
+  return h("div", {className:"tab-content-wrap", style:{padding:14,maxWidth:800,margin:"0 auto"}},
+
+    h("div", {className:"mbox", style:{background:T.surface,padding:16,borderRadius:12,marginBottom:20}},
+      h("h3", {style:{margin:"0 0 12px",fontSize:16,color:T.text}}, "Nuevo Presupuesto"),
+      h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+        h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Direccion *"), h("input", {style:inpStyle, value:form.direccion, onChange:function(e){setForm(Object.assign({},form,{direccion:e.target.value}))}})),
+        h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Descripcion *"), h("input", {style:inpStyle, value:form.descripcion, onChange:function(e){setForm(Object.assign({},form,{descripcion:e.target.value}))}}))
+      ),
+      h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+        h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Fecha Limite"), h("input", {type:"date", style:inpStyle, value:form.fechaLimite, onChange:function(e){setForm(Object.assign({},form,{fechaLimite:e.target.value}))}})),
+        h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Monto Total"), h(MoneyInput, {style:inpStyle, placeholder:"Ej: 150000", value:form.monto, onChange:function(v){setForm(Object.assign({},form,{monto:v}))}})),
+        h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Anticipo"), h(MoneyInput, {style:inpStyle, value:form.anticipo, onChange:function(v){setForm(Object.assign({},form,{anticipo:v}))}}))
+      ),
+      h("div", {style:{display:"flex",gap:10,marginBottom:14}},
+        h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Cuotas"), h("input", {type:"number", min:1, style:inpStyle, value:form.cantCuotas, onChange:function(e){setForm(Object.assign({},form,{cantCuotas:e.target.value}))}})),
+        h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Moneda"), h("select", {style:inpStyle, value:form.moneda, onChange:function(e){setForm(Object.assign({},form,{moneda:e.target.value}))}}, h("option",{value:"ARS"},"ARS"), h("option",{value:"USD"},"USD"))),
+        h("div", {style:{flex:1, display:"flex", alignItems:"flex-end"}}, h("button", {onClick:handleAdd, style:{background:"#10b981",color:"#fff",border:"none",padding:"9px 16px",borderRadius:8,cursor:"pointer",fontWeight:600,width:"100%"}}, "+ Agregar Presupuesto"))
+      )
+    ),
+
+    h("div", null,
+      presupuestos.map(function(p){
+        var ps = PSTATUS[p.estado] || PSTATUS.cotizar;
+        var estaEditando = editando === p.id;
+        return h("div", {key:p.id, style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}},
+          h("div", {style:{display:"flex",alignItems:"stretch"}},
+            h("div", {style:{width:6,background:ps.dot,flexShrink:0,borderRadius:"14px 0 0 14px",animation:ps.anim}}),
+            h("div", {style:{flex:1,display:"flex",alignItems:"center",gap:12,padding:"12px 14px",minWidth:0}},
+              h("div", {style:{width:34,height:34,borderRadius:9,background:ps.bg,border:"1.5px solid "+ps.color+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
+                h("div", {style:{width:13,height:13,borderRadius:"50%",background:ps.dot,boxShadow:"0 0 5px "+ps.dot+"88",animation:ps.anim}})
+              ),
+              h("div", {style:{flex:1,minWidth:0}},
+                h("div", {style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:3}},
+                  h("span", {className:"title-font", style:{fontWeight:700,fontSize:14,color:T.text}}, p.direccion),
+                  h("span", {style:{padding:"1px 7px",borderRadius:20,background:ps.bg,color:ps.text,fontSize:10,fontWeight:700,border:"1px solid "+ps.color+"44",whiteSpace:"nowrap"}}, ps.label),
+                  p.moneda==="USD" && h("span", {style:{padding:"1px 7px",borderRadius:20,background:"#fefce8",color:"#854d0e",fontSize:10,fontWeight:700,border:"1px solid #fde047"}}, "U")
+                ),
+                h("div", {style:{fontSize:12,color:T.textSoft}}, p.descripcion),
+                h("div", {style:{fontSize:11,color:T.textSoft,marginTop:3}},
+                  "Lim: " + fmtFecha(p.fechaLimite) +
+                  " | Monto: " + fmtMoney(p.monto, p.moneda) +
+                  " | Anticipo: " + fmtMoney(p.anticipo, p.moneda) +
+                  " | " + (p.cantCuotas||1) + " cuota/s"
+                )
+              ),
+              h("div", {style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}},
+                h("select", {value:p.estado, onChange:function(e){handleChangeEstado(p, e.target.value)}, style:{background:T.surfaceAlt,border:"1px solid "+T.border,color:T.text,padding:"5px 8px",borderRadius:6,fontSize:12,cursor:"pointer"}},
+                  h("option", {value:"urgente"}, "A cotizar - Urgente"),
+                  h("option", {value:"cotizar"}, "A cotizar"),
+                  h("option", {value:"enviado"}, "Enviado")
+                ),
+                h("div", {style:{display:"flex",gap:5}},
+                  h("button", {onClick:function(){handleEditar(p);}, style:{padding:"5px 9px",borderRadius:6,background:"#eff6ff",color:"#2563eb",border:"1px solid #bfdbfe",fontSize:11,fontWeight:700,cursor:"pointer"}}, "Editar"),
+                  h("button", {onClick:function(){handleAceptar(p);}, style:{padding:"5px 9px",borderRadius:6,background:"#10b981",color:"#fff",border:"none",fontSize:11,fontWeight:700,cursor:"pointer"}}, "Aceptado"),
+                  h("button", {onClick:function(){handleEliminar(p);}, style:{padding:"5px 9px",borderRadius:6,background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",fontSize:11,fontWeight:700,cursor:"pointer"}}, "Eliminar")
+                )
+              )
+            )
+          ),
+          estaEditando && h("div", {style:{borderTop:"1px solid "+T.border,padding:"14px 16px",background:T.bg}},
+            h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+              h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Direccion *"), h("input", {style:inpStyle, value:editForm.direccion, onChange:function(e){setEditForm(Object.assign({},editForm,{direccion:e.target.value}))}})),
+              h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Descripcion *"), h("input", {style:inpStyle, value:editForm.descripcion, onChange:function(e){setEditForm(Object.assign({},editForm,{descripcion:e.target.value}))}}))
+            ),
+            h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+              h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Fecha Limite"), h("input", {type:"date", style:inpStyle, value:editForm.fechaLimite, onChange:function(e){setEditForm(Object.assign({},editForm,{fechaLimite:e.target.value}))}})),
+              h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Monto Total"), h(MoneyInput, {style:inpStyle, value:editForm.monto, onChange:function(v){setEditForm(Object.assign({},editForm,{monto:v}))}})),
+              h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Anticipo"), h(MoneyInput, {style:inpStyle, value:editForm.anticipo, onChange:function(v){setEditForm(Object.assign({},editForm,{anticipo:v}))}}))
+            ),
+            h("div", {style:{display:"flex",gap:10,alignItems:"flex-end"}},
+              h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Cuotas"), h("input", {type:"number", min:1, style:inpStyle, value:editForm.cantCuotas, onChange:function(e){setEditForm(Object.assign({},editForm,{cantCuotas:e.target.value}))}})),
+              h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Moneda"), h("select", {style:inpStyle, value:editForm.moneda, onChange:function(e){setEditForm(Object.assign({},editForm,{moneda:e.target.value}))}}, h("option",{value:"ARS"},"ARS"), h("option",{value:"USD"},"USD"))),
+              h("div", {style:{flex:1,display:"flex",gap:8}},
+                h("button", {onClick:handleGuardarEdicion, style:{flex:1,padding:"9px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13}}, "Guardar cambios"),
+                h("button", {onClick:function(){setEditando(null);setEditForm(null);}, style:{padding:"9px 14px",background:"#f1f5f9",color:T.textMid,border:"1px solid "+T.border,borderRadius:8,fontWeight:600,cursor:"pointer",fontSize:13}}, "Cancelar")
+              )
+            )
+          )
+        );
+      })
+    ),
+
+    acceptModal && h("div", {style:modalOverlay},
+      h("div", {style:modalBox},
+        h("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+          h("div", null,
+            h("h3", {style:{color:T.text,fontSize:16,fontWeight:700,margin:0}}, "Monto acordado"),
+            h("p", {style:{color:T.textMid,fontSize:12,margin:"3px 0 0"}}, acceptModal.direccion + " - " + acceptModal.descripcion)
+          ),
+          h("button", {onClick:function(){setAcceptModal(null);}, style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}}, "x")
         ),
-        h("button",{onClick:onClose,style:{background:"none",border:"none",color:T.textSoft,fontSize:22,cursor:"pointer",lineHeight:1}},"x")
-      ),
-
-      savedClients.length > 0 && h("div",{style:{marginBottom:10}},
-        h("label",{style:lblS},"SELECCIONAR CLIENTE GUARDADO"),
-        h("select",{value:selectedClientIdx,onChange:handleSelectClient,style:inpS},
-          h("option",{value:""},"-- Seleccionar o completar manualmente --"),
-          savedClients.map(function(c,i){
-            return h("option",{key:i,value:i},c.razonSocial + " (" + c.cuit + ")");
-          })
-        )
-      ),
-
-      h("div",{style:{display:"flex",gap:10}},
-        h("div",{style:{flex:1}},
-          h("label",{style:lblS},"CONDICION FRENTE AL IVA"),
-          h("select",{value:condicionIVA,onChange:function(e){setCondicionIVA(e.target.value);},style:inpS},
-            h("option",{value:"Responsable Inscripto"},"Responsable Inscripto"),
-            h("option",{value:"Monotributo"},"Monotributo"),
-            h("option",{value:"Exento"},"Exento"),
-            h("option",{value:"Consumidor Final"},"Consumidor Final")
+        h("p", {style:{color:T.textSoft,fontSize:12,marginBottom:16}}, "Este presupuesto no tiene monto asignado. Ingresa el monto acordado y la forma de pago antes de enviarlo a Trabajos."),
+        h("div", {style:{display:"flex",gap:10,marginBottom:12}},
+          h("div", {style:{flex:1}},
+            h("label", {style:lblStyle}, "Monto acordado *"),
+            h(MoneyInput, {style:inpStyle, placeholder:"Ej: 250000", value:acceptForm.monto, onChange:function(v){setAcceptForm(Object.assign({},acceptForm,{monto:v}))}})
+          ),
+          h("div", {style:{flex:1}},
+            h("label", {style:lblStyle}, "Anticipo"),
+            h(MoneyInput, {style:inpStyle, value:acceptForm.anticipo, onChange:function(v){setAcceptForm(Object.assign({},acceptForm,{anticipo:v}))}})
           )
         ),
-        h("div",{style:{flex:1.2,position:"relative"}},
-          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-            h("label",{style:lblS},"CUIT / CUIL"),
-            fetchingCuit && h("span",{style:{fontSize:10,color:T.accent,fontWeight:600}},"Buscando en AFIP...")
+        h("div", {style:{display:"flex",gap:10,marginBottom:20}},
+          h("div", {style:{width:80}},
+            h("label", {style:lblStyle}, "Cuotas"),
+            h("input", {type:"number", min:1, style:inpStyle, value:acceptForm.cantCuotas, onChange:function(e){setAcceptForm(Object.assign({},acceptForm,{cantCuotas:e.target.value}))}})
           ),
-          h("div",{style:{display:"flex",gap:4}},
-            h("input",{
-              value:cuit,
-              onChange:function(e){handleCuitChange(e.target.value);},
-              onBlur:function(){
-                var clean = cuit.replace(/\D/g, "");
-                if(clean.length >= 10) fetchCuitData(clean);
-              },
-              placeholder:"Ej. 27-28681547-8",
-              style:merge(inpS,{marginBottom:0})
-            }),
-            h("button",{
-              type:"button",
-              onClick:function(){
-                var clean = cuit.replace(/\D/g, "");
-                if(clean.length >= 10) fetchCuitData(clean);
-              },
-              style:{padding:"0 10px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,cursor:"pointer",fontSize:13,color:T.textMid},
-              title:"Consultar Padrón AFIP"
-            },"🔍")
-          ),
-          cuitMsg && h("div",{
-            style:{
-              fontSize:11,
-              fontWeight:600,
-              marginTop:4,
-              lineHeight:1.3,
-              color: cuitMsg.type === "success" ? "#16a34a" : (cuitMsg.type === "info" ? "#2563eb" : "#ef4444")
-            }
-          }, (cuitMsg.type === "success" ? "✅ " : (cuitMsg.type === "info" ? "⏳ " : "⚠️ ")) + cuitMsg.text)
-        )
-      ),
-
-      h("div",null,
-        h("label",{style:lblS},"RAZON SOCIAL / NOMBRE DEL CLIENTE"),
-        h("input",{value:razonSocial,onChange:function(e){setRazonSocial(e.target.value);},placeholder:"Ej. Juan Pérez (se autocompleta con CUIT)",style:inpS})
-      ),
-
-      h("div",{style:{display:"flex",gap:10}},
-        h("div",{style:{width:110}},
-          h("label",{style:lblS},"PTO VENTA"),
-          h("input",{value:puntoVenta,onChange:function(e){setPuntoVenta(e.target.value);},style:inpS})
-        ),
-        h("div",{style:{flex:1}},
-          h("label",{style:lblS},"FECHA DE EMISIÓN"),
-          h("input",{type:"date",value:fechaEmision,onChange:function(e){setFechaEmision(e.target.value);},style:inpS})
-        ),
-        h("div",{style:{flex:1}},
-          h("label",{style:lblS},"CONCEPTO (AFIP)"),
-          h("select",{value:concepto,onChange:function(e){setConcepto(e.target.value);},style:inpS},
-            h("option",{value:"1"},"Productos"),
-            h("option",{value:"2"},"Servicios"),
-            h("option",{value:"3"},"Productos y Servicios")
+          h("div", {style:{width:90}},
+            h("label", {style:lblStyle}, "Moneda"),
+            h("select", {style:inpStyle, value:acceptForm.moneda, onChange:function(e){setAcceptForm(Object.assign({},acceptForm,{moneda:e.target.value}))}},
+              h("option",{value:"ARS"},"ARS"), h("option",{value:"USD"},"USD")
+            )
           )
-        )
-      ),
-
-      /* Detalle de ítems / conceptos */
-      h("div",{style:{background:T.surfaceAlt,borderRadius:12,padding:12,marginBottom:12,border:"1px solid "+T.border}},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
-          h("label",{style:merge(lblS,{marginBottom:0})},"CONCEPTOS A FACTURAR"),
-          h("span",{style:{fontSize:12,fontWeight:700,color:T.accent}},"TOTAL: " + fmtMoney(totalMonto, "ARS"))
         ),
-        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 70px 140px 24px",gap:4,marginBottom:4,paddingBottom:4,borderBottom:"1px solid "+T.border}},
-          ["Descripción","Cant.","Precio unitario",""].map(function(h2,i){ return h("span",{key:i,style:{fontSize:10,fontWeight:700,color:T.textSoft}},h2); })
-        ),
-        items.map(function(it, i){
-          return h("div",{key:it.id,style:{display:"grid",gridTemplateColumns:"1fr 70px 140px 24px",gap:4,alignItems:"center",marginBottom:6}},
-            h("input",{
-              type:"text",
-              value:it.descripcion,
-              onChange:function(e){updateItem(it.id, "descripcion", e.target.value);},
-              placeholder:"Descripción",
-              style:merge(inpS,{marginBottom:0})
-            }),
-            h("input",{
-              type:"number",
-              min:"1",
-              value:it.cantidad || 1,
-              onChange:function(e){updateItem(it.id, "cantidad", parseInt(e.target.value)||1);},
-              style:merge(inpS,{marginBottom:0,textAlign:"center",padding:"9px 6px"})
-            }),
-            h(MoneyInput,{
-              value:it.monto,
-              onChange:function(v){updateItem(it.id, "monto", v===""?0:v);},
-              style:merge(inpS,{marginBottom:0,fontWeight:700})
-            }),
-            items.length > 1 ? h("button",{
-              onClick:function(){removeItem(it.id);},
-              style:{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:16,padding:"0 2px",lineHeight:1,alignSelf:"center"}
-            },"x") : h("span",null)
-          );
-        }),
-        h("button",{
-          onClick:addItem,
-          style:{padding:"5px 10px",background:"transparent",border:"1px dashed "+T.borderMid,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:12,width:"100%",marginTop:4}
-        }, "+ Agregar otro ítem / concepto")
-      ),
-
-      error && h("div",{style:{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 12px",marginBottom:12,color:"#dc2626",fontSize:12,fontWeight:600}},error),
-
-      h("div",{style:{display:"flex",justifyContent:"flex-end",gap:8,marginTop:10,paddingTop:14,borderTop:"1px solid "+T.border}},
-        h("button",{onClick:onClose,disabled:loading,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
-        h("button",{
-          onClick:handleFacturar,
-          disabled:loading,
-          style:{padding:"8px 18px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",cursor:loading?"wait":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6,boxShadow:"0 4px 12px rgba(37,99,235,.25)"}
-        },
-          loading ? "Emitiendo CAE..." : "⚡ Emitir Factura AFIP (" + fmtMoney(totalMonto, "ARS") + ")"
+        h("div", {style:{display:"flex",gap:10}},
+          h("button", {onClick:handleConfirmAccept, style:{flex:1,padding:"11px",background:"#10b981",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}, "Confirmar y enviar a Trabajos"),
+          h("button", {onClick:function(){setAcceptModal(null);}, style:{padding:"11px 16px",background:"#f1f5f9",color:T.textMid,border:"1px solid "+T.border,borderRadius:10,fontSize:14,fontWeight:600,cursor:"pointer"}}, "Cancelar")
         )
       )
     )
   );
 }
 
-/* --- ClientesTab --- */
-function ClientesTab(props){
-  var clS = useState(function(){
-    try { return JSON.parse(localStorage.getItem("afip_clientes") || "[]"); } catch(e){ return []; }
-  });
-  var clientes = clS[0]; var setClientes = clS[1];
-
-  var facS = useState(function(){
-    try { return JSON.parse(localStorage.getItem("afip_facturas") || "[]"); } catch(e){ return []; }
-  });
-  var facturas = facS[0]; var setFacturas = facS[1];
-
-  var qS = useState(""); var query = qS[0]; var setQuery = qS[1];
-  var selCliS = useState(null); var selectedCliente = selCliS[0]; var setSelectedCliente = selCliS[1];
-  var afipModalS = useState(null); var afipModal = afipModalS[0]; var setAfipModal = afipModalS[1];
-
-  // Alternar estado pagado/pendiente de una factura
-  function toggleFacturaPago(facturaId){
-    var updated = facturas.map(function(f){
-      if(f.id === facturaId){
-        return merge(f, { pagado: !f.pagado });
-      }
-      return f;
-    });
-    setFacturas(updated);
-    localStorage.setItem("afip_facturas", JSON.stringify(updated));
-  }
-
-  // Clientes filtrados por búsqueda
-  var filteredClientes = clientes.filter(function(c){
-    var term = query.toLowerCase();
-    return (c.razonSocial||"").toLowerCase().indexOf(term) >= 0 || (c.cuit||"").indexOf(term) >= 0;
-  });
-
-  var inpS={width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 14px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
-
-  return h("div",{className:"tab-content-wrap",style:{padding:18,maxWidth:1100,margin:"0 auto"}},
-    /* Encabezado */
-    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:12}},
-      h("div",null,
-        h("h2",{className:"title-font",style:{fontSize:22,margin:0,color:T.text}},"Clientes y Facturación AFIP / ARCA"),
-        h("p",{style:{color:T.textMid,fontSize:13,margin:"4px 0 0"}},"Directorio de clientes, datos impositivos y registro de comprobantes emitidos")
-      ),
-      h("button",{
-        onClick:function(){ setAfipModal({ monto: 0, conceptoStr: "Factura Directa" }); },
-        style:{padding:"9px 16px",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:10,color:"white",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 4px 14px rgba(37,99,235,.25)"}
-      },"⚡ Emitir Nueva Factura")
-    ),
-
-    /* Barra de búsqueda y métricas rápidas */
-    h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:18}},
-      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
-        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"TOTAL CLIENTES"),
-        h("div",{style:{fontSize:22,fontWeight:800,color:T.text}},clientes.length)
-      ),
-      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
-        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"FACTURAS EMITIDAS"),
-        h("div",{style:{fontSize:22,fontWeight:800,color:T.accent}},facturas.length)
-      ),
-      h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:14}},
-        h("span",{style:{fontSize:11,fontWeight:700,color:T.textSoft,display:"block",marginBottom:4}},"TOTAL FACTURADO"),
-        h("div",{style:{fontSize:20,fontWeight:800,color:"#10b981"}},fmtMoney(facturas.reduce(function(acc,f){ return acc + parseMoney(f.monto); }, 0), "ARS"))
-      )
-    ),
-
-    h("div",{style:{marginBottom:16}},
-      h("input",{
-        type:"text",
-        value:query,
-        onChange:function(e){setQuery(e.target.value);},
-        placeholder:"🔍 Buscar cliente por Razón Social o CUIT...",
-        style:inpS
-      })
-    ),
-
-    /* Vista principal: Tabla/Tarjetas de Clientes */
-    filteredClientes.length === 0
-      ? h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,padding:40,textAlign:"center",color:T.textSoft}},
-          h("div",{style:{fontSize:36,marginBottom:10}},"👥"),
-          h("p",{style:{margin:0,fontSize:14,fontWeight:600}},"No hay clientes registrados aún"),
-          h("p",{style:{margin:"4px 0 0",fontSize:12}},"Los clientes se guardan automáticamente al emitir facturas o al asociarlos a tus trabajos.")
-        )
-      : h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:14}},
-          filteredClientes.map(function(c, idx){
-            var cFacturas = facturas.filter(function(f){ return f.clienteCuit === c.cuit; });
-            var totalCliente = cFacturas.reduce(function(acc,f){ return acc + parseMoney(f.monto); }, 0);
-            var isSelected = selectedCliente && selectedCliente.cuit === c.cuit;
-
-            return h("div",{
-              key: c.cuit || idx,
-              style:{
-                background:T.surface,
-                border:"1px solid "+(isSelected ? T.accent : T.border),
-                borderRadius:14,
-                padding:16,
-                boxShadow:isSelected ? "0 8px 24px rgba(37,99,235,.15)" : "0 2px 8px rgba(0,0,0,.04)",
-                transition:"all .2s ease"
-              }
-            },
-              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}},
-                h("div",{style:{flex:1,minWidth:0}},
-                  h("h3",{style:{margin:0,fontSize:15,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},c.razonSocial),
-                  h("span",{style:{fontSize:12,color:T.textMid,fontWeight:600}},"CUIT: " + (c.cuit || "Sin CUIT"))
-                ),
-                h("span",{style:{padding:"3px 8px",borderRadius:6,background:T.surfaceAlt,border:"1px solid "+T.border,fontSize:10,fontWeight:700,color:T.textMid}},c.condicionIVA || "Consumidor Final")
-              ),
-
-              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderTop:"1px solid "+T.border,borderBottom:"1px solid "+T.border,marginBottom:12,fontSize:12}},
-                h("span",{style:{color:T.textSoft}},"Facturas: ", h("strong",{style:{color:T.text}},cFacturas.length)),
-                h("span",{style:{color:T.textSoft}},"Facturado: ", h("strong",{style:{color:"#10b981"}},fmtMoney(totalCliente, "ARS")))
-              ),
-
-              h("div",{style:{display:"flex",gap:8}},
-                h("button",{
-                  onClick:function(){ setSelectedCliente(isSelected ? null : c); },
-                  style:{flex:1,padding:"7px 10px",background:isSelected ? T.accent+"15" : T.surfaceAlt,border:"1px solid "+(isSelected ? T.accent : T.border),borderRadius:8,color:isSelected ? T.accent : T.textMid,fontSize:12,fontWeight:700,cursor:"pointer"}
-                }, isSelected ? "Ocultar Facturas" : "📄 Ver Facturas (" + cFacturas.length + ")"),
-                h("button",{
-                  onClick:function(){ setAfipModal({ monto: 0, defaultCliente: c, conceptoStr: "Factura a " + c.razonSocial }); },
-                  style:{padding:"7px 12px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,color:"#2563eb",fontSize:12,fontWeight:700,cursor:"pointer"}
-                },"⚡ Facturar")
-              )
-            );
-          })
-        ),
-
-    /* Detalle de facturas del cliente seleccionado */
-    selectedCliente && h("div",{style:{marginTop:24,background:T.surface,border:"1px solid "+T.accent,borderRadius:16,padding:20,boxShadow:"0 12px 30px rgba(0,0,0,.08)",animation:"slideIn .25s ease forwards"}},
-      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-        h("div",null,
-          h("h3",{className:"title-font",style:{margin:0,fontSize:16,color:T.text}},"Facturas emitidas a: " + selectedCliente.razonSocial),
-          h("span",{style:{fontSize:12,color:T.textMid}},"CUIT: " + selectedCliente.cuit + " | Condición: " + (selectedCliente.condicionIVA||"RI"))
-        ),
-        h("button",{onClick:function(){setSelectedCliente(null);},style:{background:"none",border:"none",color:T.textSoft,fontSize:20,cursor:"pointer"}},"✕")
-      ),
-
-      (function(){
-        var cFacturas = facturas.filter(function(f){ return f.clienteCuit === selectedCliente.cuit; });
-        if(cFacturas.length === 0){
-          return h("p",{style:{color:T.textSoft,fontSize:13,margin:0,padding:16,textAlign:"center"}},"No hay comprobantes emitidos registrados para este cliente.");
-        }
-        return h("div",{style:{overflowX:"auto"}},
-          h("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12,textAlign:"left"}},
-            h("thead",null,
-              h("tr",{style:{borderBottom:"1px solid "+T.border,color:T.textSoft}},
-                ["Comprobante","CAE / Vto","Fecha Emisión","Monto","Estado Pago","Acciones"].map(function(th,i){
-                  return h("th",{key:i,style:{padding:"8px 10px",fontWeight:700}},th);
-                })
-              )
-            ),
-            h("tbody",null,
-              cFacturas.map(function(f){
-                return h("tr",{key:f.id,style:{borderBottom:"1px solid "+T.border}},
-                  h("td",{style:{padding:"10px",fontWeight:700,color:T.text}}, (f.tipoComprobante || "C") + " N° " + String(f.numeroComprobante||"").padStart(8, '0')),
-                  h("td",{style:{padding:"10px",color:T.textMid}},
-                    h("div",{style:{fontWeight:600}},"CAE: " + (f.cae || "-")),
-                    h("div",{style:{fontSize:11,color:T.textSoft}},"Vto: " + (f.vencimientoCAE || "-"))
-                  ),
-                  h("td",{style:{padding:"10px",color:T.textMid}},fmtFecha(f.fechaEmision)),
-                  h("td",{style:{padding:"10px",fontWeight:800,color:"#10b981"}},fmtMoney(f.monto, "ARS")),
-                  h("td",{style:{padding:"10px"}},
-                    h("button",{
-                      onClick:function(){ toggleFacturaPago(f.id); },
-                      style:{
-                        padding:"4px 10px",
-                        borderRadius:20,
-                        border:"none",
-                        background:f.pagado ? "#dcfce7" : "#fef3c7",
-                        color:f.pagado ? "#166534" : "#92400e",
-                        fontWeight:700,
-                        fontSize:11,
-                        cursor:"pointer"
-                      }
-                    }, f.pagado ? "✓ Pagada" : "⏳ Pendiente")
-                  ),
-                  h("td",{style:{padding:"10px"}},
-                    h("span",{style:{color:T.textSoft,fontSize:11}},"Pto Vta " + (f.puntoVenta||"2"))
-                  )
-                );
-              })
-            )
-          )
-        );
-      })()
-    ),
-
-    afipModal && h(ClientAfipModal,{
-      monto: afipModal.monto || 0,
-      conceptoStr: afipModal.conceptoStr || "Factura AFIP",
-      defaultCliente: afipModal.defaultCliente,
-      onClose: function(){ setAfipModal(null); },
-      onSuccess: function(resData){
-        setAfipModal(null);
-        // Recargar clientes y facturas desde localStorage
-        try { setClientes(JSON.parse(localStorage.getItem("afip_clientes")||"[]")); }catch(e){}
-        try { setFacturas(JSON.parse(localStorage.getItem("afip_facturas")||"[]")); }catch(e){}
-      }
-    })
-  );
-}
-
-/* --- CuotasModal --- */
 function CuotasModal(props){
   var trabajo=props.trabajo;var onSave=props.onSave;var onClose=props.onClose;
   var montoBase=parseMoney(trabajo.monto);
@@ -1692,7 +1366,7 @@ function CuotasModal(props){
   var ppS=useState(!!trabajo.pagoPagado);var pagoPagado=ppS[0];var setPagoPagado=ppS[1];
   var fpS=useState(trabajo.facturaFull||"");var factFull=fpS[0];var setFactFull=fpS[1];
 
-  var afipS=useState(null);var afipModal=afipS[0];var setAfipModal=afipS[1];
+  
 
   var cS=useState(function(){
     if(trabajo.cuotas&&trabajo.cuotas.length) return trabajo.cuotas.map(function(c){return merge(c,{monto:parseMoney(c.monto)});});
@@ -1992,10 +1666,10 @@ function TrabajoCard(props){
 
   return h("div",{style:{background:T.surface,border:"1px solid "+(archivado?"#cbd5e1":T.border),borderRadius:14,marginBottom:hideTitle?6:10,marginLeft:hideTitle?28:0,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.05)",opacity:saving?.65:1,transition:"opacity .2s"}},
     h("div",{onClick:function(){setOpen(function(o){return !o;});},style:{display:"flex",alignItems:"stretch",cursor:"pointer",userSelect:"none"}},
-      h("div",{style:{width:hideTitle?4:6,background:archivado?"#94a3b8":st.dot,flexShrink:0,borderRadius:"14px 0 0 14px"}}),
+      h("div",{style:{width:hideTitle?4:6,background:archivado?"#94a3b8":st.dot,flexShrink:0,borderRadius:"14px 0 0 14px",animation:(!archivado&&t.estado==="urgente")?"fadeUrgente 2.8s ease-in-out infinite":undefined}}),
       h("div",{style:{flex:1,display:"flex",alignItems:"center",gap:hideTitle?8:10,padding:hideTitle?"6px 11px":"11px 13px",minWidth:0}},
         h("div",{style:{width:hideTitle?26:34,height:hideTitle?26:34,borderRadius:hideTitle?7:9,background:archivado?"#f1f5f9":st.bg,border:"1.5px solid "+(archivado?"#cbd5e1":st.color+"55"),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
-          h("div",{style:{width:hideTitle?9:13,height:hideTitle?9:13,borderRadius:"50%",background:archivado?"#94a3b8":st.dot,boxShadow:"0 0 5px "+(archivado?"#94a3b8":st.dot)+"88"}})
+          h("div",{style:{width:hideTitle?9:13,height:hideTitle?9:13,borderRadius:"50%",background:archivado?"#94a3b8":st.dot,boxShadow:"0 0 5px "+(archivado?"#94a3b8":st.dot)+"88",animation:(!archivado&&t.estado==="urgente")?"fadeUrgente 2.8s ease-in-out infinite":undefined}})
         ),
         h("div",{style:{flex:1,minWidth:0}},
           h("div",{style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}},
@@ -3139,6 +2813,19 @@ function App(){
 
   useEffect(function(){if(loggedIn)loadTrabajos();},[loggedIn]);
 
+  // Exponer el estado y controlar visibilidad del widget flotante
+  useEffect(function(){
+    window.agenteObras = trabajos;
+    window.agenteSetTrabajos = setTrabajos;
+    window.agenteUpdateRemote = updateRemote;
+    window.agenteShowToast = showToast;
+    
+    var widget = document.getElementById("agente-flotante");
+    if(widget) {
+      widget.style.display = "none";
+    }
+  }, [trabajos, loggedIn]);
+
   /* Background Barrio Resolver: pre-fetches barrios in background upon login */
   var cobrosBackground = useMemo(function(){
     var list = [];
@@ -3159,13 +2846,6 @@ function App(){
 
   function setField(k,v){setForm(function(f){return setKey(f,k,v);});}
 
-  function calcCuotas(monto,anticipo,cant,fecha){
-    var s=parseMoney(monto)-parseMoney(anticipo);
-    var n=Math.max(1,parseInt(cant)||1);
-    return Array.from({length:n},function(_,i){
-      return {id:i+1,fecha:cuotaDate(fecha||todayStr(),i),indefinida:false,monto:Math.round(s/n),pagada:false,nroFactura:"",fechaPago:""};
-    });
-  }
 
   function handleAdd(){
     if(!form.obra.trim()) return;
@@ -3437,10 +3117,10 @@ function App(){
         /* separator: desktop only */
         h("div",{className:"hdr-sep-desktop",style:{width:1,height:22,background:"rgba(255,255,255,0.15)",margin:"0 12px",flexShrink:0}}),
         /* app name */
-        h("span",{className:"hdr-title title-font",style:{fontSize:15,color:"#f8fafc",whiteSpace:"nowrap",letterSpacing:"-0.01em",opacity:0.88}},"GestionObra 2.0"),
+        h("span",{className:"hdr-title title-font",style:{fontSize:15,color:"#f8fafc",whiteSpace:"nowrap",letterSpacing:"-0.01em",opacity:0.88}},"GestionObra 3.0"),
         /* tabs + icon buttons */
         h("div",{className:"hdr-tabs",style:{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",marginLeft:"auto",flexShrink:0}},
-          [["trabajos","Trabajos"],["alertas","Alertas"],["balance","Balance"]].map(function(kv){
+          [["trabajos","Trabajos"],["presupuestos","Presupuestos"],["alertas","Alertas"],["balance","Balance"]].map(function(kv){
             var sel = activeTab===kv[0];
             return h("button",{key:kv[0],onClick:function(){setActiveTab(kv[0]);},className:"hdr-btn",style:{padding:"6px 12px",borderRadius:8,border:sel?"1px solid rgba(255,255,255,0.2)":"1px solid transparent",cursor:"pointer",fontSize:12.5,background:sel?"rgba(255,255,255,0.15)":"transparent",color:sel?"#ffffff":"#94a3b8",position:"relative",fontFamily:"inherit",fontWeight:sel?700:500,transition:"all .15s"}},
               kv[1],
@@ -3462,8 +3142,8 @@ function App(){
     h("div", { key: activeTab, style: { animation: "slideTab 0.25s ease-out forwards", willChange: "transform, opacity" } },
       activeTab==="balance"
         ?h(BalanceTab,{trabajos:trabajos})
-        :activeTab==="clientes"
-          ?h(ClientesTab,{trabajos:trabajos})
+        :activeTab==="presupuestos"
+          ?h(PresupuestosTab,{onAccept:function(nuevo){ api.post("save",{data:nuevo}).then(function(){ loadTrabajos(); }); }})
           :activeTab==="alertas"
             ?h("div",{className:"tab-content-wrap",style:{padding:14,maxWidth:760,margin:"0 auto"}},
             h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}},
@@ -3578,7 +3258,7 @@ function App(){
                       background:mostrarFinPend?"#1e293b":T.surfaceAlt,border:"1px solid "+(mostrarFinPend?"#334155":T.border),
                       color:mostrarFinPend?"#e2e8f0":T.textMid,transition:"all .2s"}
                   },
-                    mostrarFinPend?"Ver todos":"Terminados y Pendientes"
+                    mostrarFinPend?"Ver todos":"Pendientes de cobro"
                   )
                 ),
                 h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
@@ -3682,8 +3362,8 @@ function App(){
     ),
 
 
-    /* Assistant Widget */
-    h(AssistantWidget, {alertas: alertas, trabajos: trabajos}),
+    /* Assistant Widget (desactivado para no solapar el nuevo) */
+    // h(AssistantWidget, {alertas: alertas, trabajos: trabajos}),
 
     /* footer */
     h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
