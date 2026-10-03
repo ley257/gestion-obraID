@@ -1422,23 +1422,7 @@ function CuotasModal(props){
           ),
           h("div",{style:{flex:"1 1 140px"}},
             h("p",{style:{color:T.textSoft,fontSize:10,fontWeight:700,margin:"0 0 3px"}},"N FACTURA ANTICIPO"),
-            h("div",{style:{display:"flex",gap:4}},
-              h("input",{type:"text",value:factAnt,onChange:function(e){setFactAnt(e.target.value);},placeholder:"N factura",style:ib}),
-              h("button",{
-                onClick:function(){
-                  setAfipModal({
-                    monto: anticipo,
-                    conceptoStr: "Anticipo: " + trabajo.obra,
-                    onSuccess: function(res){
-                      setFactAnt("FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
-                      setAntPag(true);
-                      setAfipModal(null);
-                    }
-                  });
-                },
-                style:{padding:"0 8px",height:31,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}
-              },"⚡ AFIP")
-            )
+            h("input",{type:"text",value:factAnt,onChange:function(e){setFactAnt(e.target.value);},placeholder:"N factura",style:ib})
           ),
           h("button",{
             onClick:function(){setAntPag(!antPag);},
@@ -1458,23 +1442,7 @@ function CuotasModal(props){
         h("div",{style:{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}},
           h("div",{style:{flex:"1 1 140px"}},
             h("p",{style:{color:T.textSoft,fontSize:10,fontWeight:700,margin:"0 0 3px"}},"N FACTURA"),
-            h("div",{style:{display:"flex",gap:4}},
-              h("input",{type:"text",value:factFull,onChange:function(e){setFactFull(e.target.value);},placeholder:"N factura",style:ib}),
-              h("button",{
-                onClick:function(){
-                  setAfipModal({
-                    monto: saldoRef,
-                    conceptoStr: "Pago Único: " + trabajo.obra,
-                    onSuccess: function(res){
-                      setFactFull("FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
-                      setPagoPagado(true);
-                      setAfipModal(null);
-                    }
-                  });
-                },
-                style:{padding:"0 8px",height:31,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:8,color:"white",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}
-              },"⚡ AFIP")
-            )
+            h("input",{type:"text",value:factFull,onChange:function(e){setFactFull(e.target.value);},placeholder:"N factura",style:ib})
           ),
           h("label",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,color:T.textMid,flexShrink:0}},
             h("input",{type:"checkbox",checked:pagoPagado,onChange:function(e){setPagoPagado(e.target.checked);},style:{width:15,height:15,cursor:"pointer"}}),
@@ -1503,23 +1471,7 @@ function CuotasModal(props){
               trabajo.moneda==="USD"&&h("span",{style:{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",color:"#854d0e",fontSize:10,fontWeight:700,pointerEvents:"none",zIndex:1}},"U$S"),
               h(MoneyInput,{value:c.monto,onChange:function(v){updCuota(c.id,"monto",v===""?0:v);},style:merge(ib,{paddingLeft:trabajo.moneda==="USD"?28:8,marginBottom:0})})
             ),
-            h("div",{style:{display:"flex",gap:2,flex:1}},
-              h("input",{type:"text",value:c.nroFactura||"",onChange:function(e){updCuota(c.id,"nroFactura",e.target.value);},placeholder:"N factura",style:merge(ib,{marginBottom:0,flex:1})}),
-              h("button",{
-                onClick:function(){
-                  setAfipModal({
-                    monto: c.monto,
-                    conceptoStr: "Cuota #" + (i+1) + ": " + trabajo.obra,
-                    onSuccess: function(res){
-                      updCuota(c.id, "nroFactura", "FAC-" + String(res.numeroComprobante).padStart(8,"0") + " (CAE:" + res.cae + ")");
-                      updCuota(c.id, "pagada", true);
-                      setAfipModal(null);
-                    }
-                  });
-                },
-                style:{padding:"0 4px",height:28,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",border:"none",borderRadius:6,color:"white",fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",alignSelf:"center"}
-              },"⚡")
-            ),
+            h("input",{type:"text",value:c.nroFactura||"",onChange:function(e){updCuota(c.id,"nroFactura",e.target.value);},placeholder:"N factura",style:merge(ib,{marginBottom:0,flex:1})}),
             h("button",{onClick:function(){updCuota(c.id,"pagada",!c.pagada);},style:{padding:"6px 9px",borderRadius:8,border:"none",cursor:"pointer",fontSize:10,fontWeight:700,background:c.pagada?"#dcfce7":"#fef9ec",color:c.pagada?"#15803d":"#b45309",whiteSpace:"nowrap",flexShrink:0}},c.pagada?"PAGADA":"PEND"),
             h("button",{onClick:function(){remCuota(c.id);},style:{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:17,padding:"0 4px",lineHeight:1,flexShrink:0}},"x")
           )
@@ -1546,14 +1498,7 @@ function CuotasModal(props){
           h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
           h("button",{onClick:function(){playCashRegisterSound();onSave(cuotas,anticipo,factAnt,antPag,pagoPagado,factFull);},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar")
         )
-      ),
-
-      afipModal && h(ClientAfipModal, {
-        monto: afipModal.monto,
-        conceptoStr: afipModal.conceptoStr,
-        onSuccess: afipModal.onSuccess,
-        onClose: function(){ setAfipModal(null); }
-      })
+      )
     )
   );
 }
