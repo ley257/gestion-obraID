@@ -402,6 +402,7 @@ function playLoginSound(){
 }
 /* ---- End Sound Engine ---- */
 
+
 var API_URL   = "https://script.google.com/macros/s/AKfycbxICW4cXDPleIQeGyaTx8O5A9_N0rxZpXT7DG4-Wz0qcBi9PU-4gY9i0Eu5vxt15m9yoA/exec";
 var CRED_USER = "ivandimiero";
 var CRED_PASS = "Salta1954";
@@ -1128,7 +1129,8 @@ function PresupuestosTab(props) {
   });
   var presupuestos = pS[0]; var setPresupuestos = pS[1];
 
-  var emptyForm = {direccion:"", descripcion:"", fechaLimite:todayStr(), monto:"", anticipo:"", cantCuotas:"1", moneda:"ARS"};
+  var currentYear = new Date().getFullYear();
+  var emptyForm = {direccion:"", descripcion:"", fechaLimite:todayStr(), monto:"", anticipo:"", cantCuotas:"1", moneda:"ARS", presupuestoNroAnio:String(currentYear), presupuestoNroNum:"", presupuestoUrl:""};
   var formS = useState(emptyForm);
   var form = formS[0]; var setForm = formS[1];
 
@@ -1149,6 +1151,9 @@ function PresupuestosTab(props) {
       alert("Direccion y descripcion son obligatorios.");
       return;
     }
+    var nroAnio = (form.presupuestoNroAnio||"").trim();
+    var nroNum  = (form.presupuestoNroNum||"").trim();
+    var presupuestoNro = (nroAnio && nroNum) ? nroAnio + "-" + nroNum : "";
     var nuevo = {
       id: String(Date.now()),
       direccion: form.direccion,
@@ -1158,6 +1163,8 @@ function PresupuestosTab(props) {
       anticipo: form.anticipo,
       cantCuotas: form.cantCuotas,
       moneda: form.moneda,
+      presupuestoNro: presupuestoNro,
+      presupuestoUrl: form.presupuestoUrl||"",
       estado: "cotizar",
       fecha: todayStr()
     };
@@ -1214,16 +1221,25 @@ function PresupuestosTab(props) {
 
   function handleEditar(p) {
     setEditando(p.id);
+    var nroParts = (p.presupuestoNro||"").split("-");
+    var editAnio = nroParts.length >= 2 ? nroParts[0] : String(new Date().getFullYear());
+    var editNum  = nroParts.length >= 2 ? nroParts.slice(1).join("-") : "";
     setEditForm({
       direccion: p.direccion||"", descripcion: p.descripcion||"",
       fechaLimite: p.fechaLimite||todayStr(), monto: p.monto||"",
-      anticipo: p.anticipo||"", cantCuotas: p.cantCuotas||"1", moneda: p.moneda||"ARS"
+      anticipo: p.anticipo||"", cantCuotas: p.cantCuotas||"1", moneda: p.moneda||"ARS",
+      presupuestoNroAnio: editAnio, presupuestoNroNum: editNum,
+      presupuestoUrl: p.presupuestoUrl||""
     });
   }
 
   function handleGuardarEdicion() {
     if(!editForm.direccion.trim() || !editForm.descripcion.trim()) { alert("Direccion y descripcion son obligatorios."); return; }
-    var newList = presupuestos.map(function(x) { return x.id === editando ? Object.assign({}, x, editForm) : x; });
+    var nroAnio2 = (editForm.presupuestoNroAnio||"").trim();
+    var nroNum2  = (editForm.presupuestoNroNum||"").trim();
+    var presupuestoNro2 = (nroAnio2 && nroNum2) ? nroAnio2 + "-" + nroNum2 : "";
+    var updatedFields = Object.assign({}, editForm, {presupuestoNro: presupuestoNro2, presupuestoUrl: editForm.presupuestoUrl||""});
+    var newList = presupuestos.map(function(x) { return x.id === editando ? Object.assign({}, x, updatedFields) : x; });
     saveP(newList);
     setEditando(null); setEditForm(null);
   }
@@ -1245,6 +1261,30 @@ function PresupuestosTab(props) {
         h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Fecha Limite"), h("input", {type:"date", style:inpStyle, value:form.fechaLimite, onChange:function(e){setForm(Object.assign({},form,{fechaLimite:e.target.value}))}})),
         h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Monto Total"), h(MoneyInput, {style:inpStyle, placeholder:"Ej: 150000", value:form.monto, onChange:function(v){setForm(Object.assign({},form,{monto:v}))}})),
         h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Anticipo"), h(MoneyInput, {style:inpStyle, value:form.anticipo, onChange:function(v){setForm(Object.assign({},form,{anticipo:v}))}}))
+      ),
+      h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+        h("div", {style:{flex:"0 0 auto"}},
+          h("label", {style:lblStyle}, "Presupuesto N\u00b0 (opcional)"),
+          h("div", {style:{display:"flex",gap:5,alignItems:"center"}},
+            h("input", {type:"text",maxLength:4, style:Object.assign({},inpStyle,{width:72,textAlign:"center",fontWeight:700}), value:form.presupuestoNroAnio, onChange:function(e){setForm(Object.assign({},form,{presupuestoNroAnio:e.target.value}))}, placeholder:"A\u00f1o"}),
+            h("span", {style:{color:T.textSoft,fontWeight:700,fontSize:16}}, "-"),
+            h("input", {type:"text",maxLength:10, style:Object.assign({},inpStyle,{width:88,textAlign:"center",fontWeight:700}), value:form.presupuestoNroNum, onChange:function(e){setForm(Object.assign({},form,{presupuestoNroNum:e.target.value}))}, placeholder:"N\u00famero"})
+          )
+        ),
+        h("div", {style:{flex:1}},
+          h("label", {style:lblStyle}, "Enlace PDF Presupuesto (Dropbox / Drive, opcional)"),
+          h("input", {type:"text", style:inpStyle, value:form.presupuestoUrl, onChange:function(e){
+            var v=e.target.value; var upd={presupuestoUrl:v};
+            var decoded = ""; try { decoded = decodeURIComponent(v); } catch(err) { decoded = v; }
+            var m = decoded.match(/(20\d{2})-(\d+)(.*?)(?=\.(?:pdf|doc|docx|jpg|png)|\?|$)/i);
+            if(m){ 
+              upd.presupuestoNroAnio=m[1]; upd.presupuestoNroNum=m[2]; 
+              var addr = m[3].replace(/^[\s\-_]+/, '').replace(/-/g, ' ').trim();
+              if(addr) upd.direccion = addr;
+            }
+            setForm(Object.assign({},form,upd));
+          }, placeholder:"https://www.dropbox.com/..."})
+        )
       ),
       h("div", {style:{display:"flex",gap:10,marginBottom:14}},
         h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Cuotas"), h("input", {type:"number", min:1, style:inpStyle, value:form.cantCuotas, onChange:function(e){setForm(Object.assign({},form,{cantCuotas:e.target.value}))}})),
@@ -1272,10 +1312,17 @@ function PresupuestosTab(props) {
                 ),
                 h("div", {style:{fontSize:12,color:T.textSoft}}, p.descripcion),
                 h("div", {style:{fontSize:11,color:T.textSoft,marginTop:3}},
+                  (p.presupuestoNro ? "Pres. N\u00b0: " + p.presupuestoNro + " | " : "") +
                   "Lim: " + fmtFecha(p.fechaLimite) +
                   " | Monto: " + fmtMoney(p.monto, p.moneda) +
                   " | Anticipo: " + fmtMoney(p.anticipo, p.moneda) +
                   " | " + (p.cantCuotas||1) + " cuota/s"
+                ),
+                p.presupuestoUrl && h("div", {style:{marginTop:3}},
+                  h("a", {href:p.presupuestoUrl, target:"_blank", rel:"noreferrer",
+                    style:{fontSize:11,color:T.accent,fontWeight:600,textDecoration:"none"}},
+                    "\ud83d\udcc4 Ver PDF Presupuesto \u2197"
+                  )
                 )
               ),
               h("div", {style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}},
@@ -1301,6 +1348,30 @@ function PresupuestosTab(props) {
               h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Fecha Limite"), h("input", {type:"date", style:inpStyle, value:editForm.fechaLimite, onChange:function(e){setEditForm(Object.assign({},editForm,{fechaLimite:e.target.value}))}})),
               h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Monto Total"), h(MoneyInput, {style:inpStyle, value:editForm.monto, onChange:function(v){setEditForm(Object.assign({},editForm,{monto:v}))}})),
               h("div", {style:{flex:1}}, h("label", {style:lblStyle}, "Anticipo"), h(MoneyInput, {style:inpStyle, value:editForm.anticipo, onChange:function(v){setEditForm(Object.assign({},editForm,{anticipo:v}))}}))
+            ),
+            h("div", {style:{display:"flex",gap:10,marginBottom:10}},
+              h("div", {style:{flex:"0 0 auto"}},
+                h("label", {style:lblStyle}, "Presupuesto N\u00b0 (opcional)"),
+                h("div", {style:{display:"flex",gap:5,alignItems:"center"}},
+                  h("input", {type:"text",maxLength:4, style:Object.assign({},inpStyle,{width:72,textAlign:"center",fontWeight:700}), value:editForm.presupuestoNroAnio||"", onChange:function(e){setEditForm(Object.assign({},editForm,{presupuestoNroAnio:e.target.value}))}, placeholder:"A\u00f1o"}),
+                  h("span", {style:{color:T.textSoft,fontWeight:700,fontSize:16}}, "-"),
+                  h("input", {type:"text",maxLength:10, style:Object.assign({},inpStyle,{width:88,textAlign:"center",fontWeight:700}), value:editForm.presupuestoNroNum||"", onChange:function(e){setEditForm(Object.assign({},editForm,{presupuestoNroNum:e.target.value}))}, placeholder:"N\u00famero"})
+                )
+              ),
+              h("div", {style:{flex:1}},
+                h("label", {style:lblStyle}, "Enlace PDF (opcional)"),
+                h("input", {type:"text", style:inpStyle, value:editForm.presupuestoUrl||"", onChange:function(e){
+                var v=e.target.value; var upd={presupuestoUrl:v};
+                var decoded = ""; try { decoded = decodeURIComponent(v); } catch(err) { decoded = v; }
+                var m = decoded.match(/(20\d{2})-(\d+)(.*?)(?=\.(?:pdf|doc|docx|jpg|png)|\?|$)/i);
+                if(m){ 
+                  upd.presupuestoNroAnio=m[1]; upd.presupuestoNroNum=m[2]; 
+                  var addr = m[3].replace(/^[\s\-_]+/, '').replace(/-/g, ' ').trim();
+                  if(addr) upd.direccion = addr;
+                }
+                setEditForm(Object.assign({},editForm,upd));
+              }, placeholder:"https://www.dropbox.com/..."})
+              )
             ),
             h("div", {style:{display:"flex",gap:10,alignItems:"flex-end"}},
               h("div", {style:{width:80}}, h("label", {style:lblStyle}, "Cuotas"), h("input", {type:"number", min:1, style:inpStyle, value:editForm.cantCuotas, onChange:function(e){setEditForm(Object.assign({},editForm,{cantCuotas:e.target.value}))}})),
@@ -1513,6 +1584,7 @@ function EditObraModal(props){
   var [moneda, setMoneda] = useState(trabajo.moneda||"ARS");
   var [estado, setEstado] = useState(trabajo.estado||"pendiente");
   var [presupuestoUrl, setPresupuestoUrl] = useState(trabajo.presupuestoUrl||"");
+  var [presupuestoNro, setPresupuestoNro] = useState(trabajo.presupuestoNro||"");
 
   var ib={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10};
   var lS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:5};
@@ -1526,7 +1598,28 @@ function EditObraModal(props){
       h("div",null,
         h("div",null,h("label",{style:lS},"OBRA"),h("input",{value:obra,onChange:function(e){setObra(e.target.value);},style:ib})),
         h("div",null,h("label",{style:lS},"DESCRIPCION"),h("textarea",{value:descripcion,onChange:function(e){setDescripcion(e.target.value);},rows:2,style:merge(ib,{resize:"vertical"})})),
-        h("div",null,h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:presupuestoUrl,onChange:function(e){setPresupuestoUrl(e.target.value);},placeholder:"https://www.dropbox.com/... o Google Drive link",style:ib})),
+        h("div",{style:{marginBottom:10}},
+          h("label",{style:lS},"PRESUPUESTO N\u00b0 (opcional)"),
+          h("div",{style:{display:"flex",gap:6,alignItems:"center"}},
+            h("input",{type:"text",maxLength:4,value:(presupuestoNro||"").split("-")[0]||"",onChange:function(e){
+              var parts=(presupuestoNro||"").split("-");parts[0]=e.target.value;setPresupuestoNro(parts.join("-").replace(/^-/,""));
+            },placeholder:"A\u00f1o",style:Object.assign({},ib,{width:80,textAlign:"center",fontWeight:700,marginBottom:0})}),
+            h("span",{style:{color:"#94a3b8",fontWeight:700,fontSize:18}},"-"),
+            h("input",{type:"text",maxLength:10,value:(presupuestoNro||"").split("-").slice(1).join("-")||"",onChange:function(e){
+              var parts=(presupuestoNro||"").split("-");var anio=parts[0]||"";setPresupuestoNro(anio+"-"+e.target.value);
+            },placeholder:"N\u00famero",style:Object.assign({},ib,{width:100,textAlign:"center",fontWeight:700,marginBottom:0})})
+          )
+        ),
+        h("div",null,h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:presupuestoUrl,onChange:function(e){
+          var v=e.target.value; setPresupuestoUrl(v);
+          var decoded = ""; try { decoded = decodeURIComponent(v); } catch(err) { decoded = v; }
+          var m = decoded.match(/(20\d{2})-(\d+)(.*?)(?=\.(?:pdf|doc|docx|jpg|png)|\?|$)/i);
+          if(m){ 
+            setPresupuestoNro(m[1]+"-"+m[2]); 
+            var addr = m[3].replace(/^[\s\-_]+/, '').replace(/-/g, ' ').trim();
+            if(addr) setObra(addr);
+          }
+        },placeholder:"https://www.dropbox.com/... o Google Drive link",style:ib})),
         h("div",null,h("label",{style:lS},"FECHA DE REGISTRO"),h("input",{type:"date",value:fecha,onChange:function(e){setFecha(e.target.value);},style:ib})),
         h("div",null,h("label",{style:lS},"MONEDA"),
           h("select",{value:moneda,onChange:function(e){setMoneda(e.target.value);},style:ib},
@@ -1543,7 +1636,7 @@ function EditObraModal(props){
       ),
       h("div",{style:{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid "+T.border}},
         h("button",{onClick:onClose,style:{padding:"8px 14px",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,color:T.textMid,cursor:"pointer",fontSize:13}},"Cancelar"),
-        h("button",{onClick:function(){onSave({obra:obra,descripcion:descripcion,monto:monto,fecha:fecha,moneda:moneda,estado:estado,presupuestoUrl:presupuestoUrl});},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar cambios")
+        h("button",{onClick:function(){onSave({obra:obra,descripcion:descripcion,monto:monto,fecha:fecha,moneda:moneda,estado:estado,presupuestoUrl:presupuestoUrl,presupuestoNro:presupuestoNro});},style:{padding:"8px 16px",background:T.accent,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:13,fontWeight:600}},"Guardar cambios")
       )
     )
   );
@@ -1663,6 +1756,9 @@ function TrabajoCard(props){
           h("p",{style:{margin:0,color:T.textSoft,fontSize:9,fontWeight:700,letterSpacing:".05em"}},"CUOTAS"),
           h("p",{style:{margin:"2px 0 0",color:T.textMid,fontSize:12,fontWeight:700}},cpag+"/"+ctot)
         )
+      ),
+      t.presupuestoNro&&h("div",{style:{background:"#eff6ff",borderRadius:8,padding:"5px 11px",marginBottom:8,border:"1px solid #bfdbfe",fontSize:12,display:"flex",gap:6,alignItems:"center"}},
+        h("span",{style:{color:"#1d4ed8",fontWeight:700,fontSize:11}},"\ud83d\udcc4 Presupuesto N\u00b0: "+t.presupuestoNro)
       ),
       antici>0&&h("div",{style:{background:"#fffbeb",borderRadius:8,padding:"7px 11px",marginBottom:10,border:"1px solid #fde68a",fontSize:12,display:"flex",gap:14,flexWrap:"wrap"}},
         h("span",{style:{color:"#92400e"}},"Anticipo: "+(t.moneda==="USD"?"U$S ":"$ ")+fmt(antici)+" "+(t.anticipoPagado?"Cobrado":"Pendiente")),
@@ -2730,7 +2826,18 @@ function App(){
 
   function handleAsignarPresupuesto(obraId){
     var updated = trabajos.map(function(t){
-      return t.id===obraId ? merge(t,{presupuestoUrl: dropboxPick.link}) : t;
+      if(t.id===obraId){
+        var newT = merge(t,{presupuestoUrl: dropboxPick.link});
+        var decoded = ""; try { decoded = decodeURIComponent(dropboxPick.name || ""); } catch(err) { decoded = dropboxPick.name || ""; }
+        var m = decoded.match(/(20\d{2})-(\d+)(.*?)(?=\.(?:pdf|doc|docx|jpg|png)|\?|$)/i);
+        if(m){ 
+          newT.presupuestoNro = m[1]+"-"+m[2]; 
+          var addr = m[3].replace(/^[\s\-_]+/, '').replace(/-/g, ' ').trim();
+          if(addr) newT.obra = addr;
+        }
+        return newT;
+      }
+      return t;
     });
     setTrabajos(updated);
     updateRemote(updated.filter(function(t){return t.id===obraId;})[0]);
@@ -2910,7 +3017,8 @@ function App(){
           fecha: newFields.fecha,
           moneda: newFields.moneda,
           estado: newFields.estado,
-          presupuestoUrl: newFields.presupuestoUrl
+          presupuestoUrl: newFields.presupuestoUrl,
+          presupuestoNro: newFields.presupuestoNro
         });
       }
       return t;
