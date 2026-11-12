@@ -46,10 +46,6 @@ input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
 .toast-text{font-size:15px;font-weight:700;color:#1e293b}
 .mgrid-row1,.mgrid-row2{display:contents}
 
-@keyframes dropZonePulse {0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
-.dropbox-overlay{position:fixed;inset:0;z-index:11000;display:flex;align-items:center;justify-content:center;background:rgba(37,99,235,0.18);backdrop-filter:blur(3px);animation:popupBackdropIn .15s ease forwards;pointer-events:none}
-.dropbox-overlay-box{pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#ffffff;border:3px dashed #2563eb;border-radius:24px;padding:46px 64px;box-shadow:0 25px 70px rgba(37,99,235,.28);animation:dropZonePulse 1.4s ease-in-out infinite}
-.dropbox-btn-fab{position:fixed;bottom:60px;left:20px;z-index:900;display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:30px;border:1px solid #bfdbfe;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(37,99,235,.35)}
 @keyframes floatAssistant {0%{transform:translateY(0)}50%{transform:translateY(-8px)}100%{transform:translateY(0)}}
 .assistant-widget{position:fixed;bottom:60px;right:20px;z-index:900;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
 .assistant-avatar-btn{background:none;border:none;cursor:pointer;padding:0;margin-top:4px;position:relative;pointer-events:auto;outline:none}
@@ -391,15 +387,16 @@ function useBarrioResolver(trabajos,cobros,monFilter){
 /* ===== FIN GEOCODIFICACIÓN ===== */
 
 function fmt(v){ return parseMoney(v).toLocaleString("es-AR",{minimumFractionDigits:0,maximumFractionDigits:0}); }
-function todayStr(){ return new Date().toISOString().split("T")[0]; }
+
+/* ---- Fechas (siempre en hora local, sin saltos de zona horaria) ---- */
+function pad2(n){ return (n<10?"0":"")+n; }
+function toLocalISO(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function todayStr(){ return toLocalISO(new Date()); }
 
 function normFecha(ds){
   if(!ds) return "";
   if(typeof ds==="object" && ds.getFullYear){
-    var yy=ds.getUTCFullYear();
-    var mm=String(ds.getUTCMonth()+1).padStart?String(ds.getUTCMonth()+1).padStart(2,"0"):(ds.getUTCMonth()<9?"0":"")+(ds.getUTCMonth()+1);
-    var dd=ds.getUTCDate()<10?"0"+ds.getUTCDate():""+ds.getUTCDate();
-    return yy+"-"+mm+"-"+dd;
+    return toLocalISO(new Date(ds.getFullYear(), ds.getMonth(), ds.getDate(), 12, 0, 0));
   }
   var s=String(ds).trim();
   if(s.length>10 && s.charAt(10)==="T") return s.substring(0,10);
@@ -413,14 +410,35 @@ function normFecha(ds){
   return s.substring(0,10);
 }
 function fmtFecha(ds){ var s=normFecha(ds); if(!s||s.length<10) return s||""; var p=s.split("-"); if(p.length!==3) return s; return p[2]+"/"+p[1]+"/"+p[0].substring(2); }
-function addDays(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
-function addMonths(ds,n){ var d=new Date((ds||todayStr())+"T12:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().split("T")[0]; }
+function fmtDateTime(ts){ if(!ts) return "\u2014"; var d=new Date(ts); return d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); }
+/* Convierte "YYYY-MM-DD" a un Date local al mediodía (evita desplazamientos por zona horaria) */
+function parseDateLocal(ds){
+  var s=normFecha(ds)||todayStr();
+  var p=s.split("-");
+  var y=parseInt(p[0],10)||1970;
+  var m=(parseInt(p[1],10)||1)-1;
+  var d=parseInt(p[2],10)||1;
+  return new Date(y,m,d,12,0,0,0);
+}
+function addDays(ds,n){ var d=parseDateLocal(ds); d.setDate(d.getDate()+n); return toLocalISO(d); }
+function addMonths(ds,n){
+  var d=parseDateLocal(ds);
+  var targetDay=d.getDate();
+  var m=d.getMonth()+n;
+  var y=d.getFullYear()+Math.floor(m/12);
+  var mm=((m%12)+12)%12;
+  var lastDay=new Date(y,mm+1,0).getDate();
+  var dd=Math.min(targetDay,lastDay);
+  return y+"-"+pad2(mm+1)+"-"+pad2(dd);
+}
 function cuotaDate(base,i){ var first=addDays(base,30); return i===0?first:addMonths(first,i); }
 function calcCuotas(monto,anticipo,cant,fecha){
   var s=parseMoney(monto)-parseMoney(anticipo);
   var n=Math.max(1,parseInt(cant)||1);
+  var base=Math.floor(s/n);
+  var resto=s-base*n;
   return Array.from({length:n},function(_,i){
-    return {id:i+1,fecha:cuotaDate(fecha||todayStr(),i),indefinida:false,monto:Math.round(s/n),pagada:false,nroFactura:"",fechaPago:""};
+    return {id:i+1,fecha:cuotaDate(fecha||todayStr(),i),indefinida:false,monto:base+(i<resto?1:0),pagada:false,nroFactura:"",fechaPago:""};
   });
 }
 var merge=function(a,b){ return Object.assign({},a,b); };
@@ -440,12 +458,42 @@ function calcTotals(t){
 }
 function esArchivado(t){ if(t.estado!=="finalizado") return false; return calcTotals(t).pendiente<=0; }
 
+/* --- Sesión de autenticación (se activa cuando el backend exige token) --- */
+var SESSION_TOKEN=null;
+function setSessionToken(t){
+  SESSION_TOKEN=t||null;
+  try{ if(t) sessionStorage.setItem("gs_token",t); else sessionStorage.removeItem("gs_token"); }catch(e){}
+}
+function getSessionToken(){
+  if(SESSION_TOKEN) return SESSION_TOKEN;
+  try{ SESSION_TOKEN=sessionStorage.getItem("gs_token")||""; }catch(e){ SESSION_TOKEN=""; }
+  return SESSION_TOKEN;
+}
+
 var api={
-  get:function(action){ return fetch(API_URL+"?action="+action).then(function(r){return r.json();}); },
+  get:function(action){
+    var t=getSessionToken();
+    var url=API_URL+"?action="+action+(t?"&token="+encodeURIComponent(t):"");
+    return fetch(url).then(function(r){return r.json();});
+  },
   post:function(action,payload){
-    return fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(Object.assign({action:action},payload))}).then(function(r){return r.json();});
+    var t=getSessionToken();
+    var body=Object.assign({action:action},payload||{});
+    if(t) body.token=t;
+    return fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(body)}).then(function(r){return r.json();});
   }
 };
+
+/* ===== COPIAS DE SEGURIDAD (Google Drive, gestionadas por el backend) =====
+   El backend guarda 3 snapshots (Reciente/Diaria/Semanal) en una carpeta
+   de Google Drive, independiente de la hoja. Acá solo se muestran y se
+   disparan los endpoints backupCreate / backupList / backupRestore. */
+var BACKUP_SLOTS=[
+  { id:"reciente", label:"Reciente", desc:"Se actualiza en cada cambio" },
+  { id:"diaria",   label:"Diaria",   desc:"Se actualiza 1 vez por día como máximo" },
+  { id:"semanal",  label:"Semanal",  desc:"Se actualiza 1 vez por semana como máximo" }
+];
+
 
 /* ===== Colecciones en la nube (Google Sheets) =====
    Clientes y presupuestos se guardan en Google Sheets igual que los trabajos.
@@ -1798,9 +1846,24 @@ function Login(props){
   var pS=useState(""); var pass=pS[0], setPass=pS[1];
   var eS=useState(""); var err=eS[0], setErr=eS[1];
   var aS=useState("fadeUp .5s ease-out"); var anim=aS[0], setAnim=aS[1];
+  var lbS=useState(false); var loginBusy=lbS[0], setLoginBusy=lbS[1];
   function submit(){
-    if(user.trim()===CRED_USER&&pass.trim()===CRED_PASS){ onLogin(); }
-    else { setErr("Usuario o contraseña incorrectos"); setAnim("shake .4s"); setTimeout(function(){setAnim("none");},500); }
+    var u=user.trim(), p=pass.trim();
+    if(u!==CRED_USER || p!==CRED_PASS){
+      setErr("Usuario o contraseña incorrectos"); setAnim("shake .4s"); setTimeout(function(){setAnim("none");},500);
+      return;
+    }
+    setLoginBusy(true); setErr("");
+    // Si el backend ya tiene autenticación, pide el token de sesión.
+    // Si aún no está desplegada, entra igual (fallback) para no bloquear el acceso.
+    api.post("login",{user:u,pass:p}).then(function(res){
+      setLoginBusy(false);
+      if(res && res.token){ setSessionToken(res.token); }
+      onLogin();
+    }).catch(function(){
+      setLoginBusy(false);
+      onLogin();
+    });
   }
   var iS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"11px 14px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"};
   return h("div",{style:{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:14}},
@@ -1819,7 +1882,7 @@ function Login(props){
         h("input",{type:"password",value:pass,placeholder:"........",onChange:function(e){setPass(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")submit();},style:iS})
       ),
       err&&h("p",{style:{color:"#ef4444",fontSize:13,textAlign:"center",marginBottom:13,background:"#fef2f2",padding:"7px 12px",borderRadius:8}},err),
-      h("button",{onClick:submit,style:{width:"100%",padding:"12px",background:"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 16px rgba(37,99,235,.3)",fontFamily:"inherit"}},"Ingresar")
+      h("button",{onClick:submit,disabled:loginBusy,style:{width:"100%",padding:"12px",background:"linear-gradient(135deg,#2563eb,#4f46e5)",border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:600,cursor:loginBusy?"not-allowed":"pointer",opacity:loginBusy?.75:1,boxShadow:"0 4px 16px rgba(37,99,235,.3)",fontFamily:"inherit"}},loginBusy?"Ingresando...":"Ingresar")
     )
   );
 }
@@ -2592,6 +2655,113 @@ class AppErrorBoundary extends React.Component{
   }
 }
 
+/* --- BackupsTab --- */
+function BackupsTab(props){
+  var onBackupNow=props.onBackupNow, onRestore=props.onRestore;
+  var slotsS=useState([]); var slots=slotsS[0], setSlots=slotsS[1];
+  var loadingS=useState(true); var loading=loadingS[0], setLoading=loadingS[1];
+  var busyS=useState(false); var busy=busyS[0], setBusy=busyS[1];
+  var confirmS=useState(null); var confirmSlot=confirmS[0], setConfirmSlot=confirmS[1];
+  var restoringS=useState(false); var restoring=restoringS[0], setRestoring=restoringS[1];
+  var noticeS=useState(""); var notice=noticeS[0], setNotice=noticeS[1];
+  var tickS=useState(0); var tick=tickS[0], setTick=tickS[1];
+
+  function loadSlots(){
+    setLoading(true);
+    api.get("backupList").then(function(res){
+      setSlots(res && res.backups ? res.backups : []);
+      setLoading(false);
+    }).catch(function(){ setLoading(false); setSlots([]); });
+  }
+  useEffect(function(){ loadSlots(); },[tick]);
+
+  function infoDe(slotId){
+    for(var i=0;i<slots.length;i++){ if(slots[i].id===slotId) return slots[i]; }
+    return null;
+  }
+  function slotLabel(id){
+    for(var j=0;j<BACKUP_SLOTS.length;j++){ if(BACKUP_SLOTS[j].id===id) return BACKUP_SLOTS[j].label; }
+    return "";
+  }
+
+  function doBackupNow(){
+    setBusy(true); setNotice("");
+    Promise.resolve(onBackupNow?onBackupNow():true).then(function(){
+      setBusy(false); setTick(function(x){ return x+1; }); setNotice("Copias actualizadas.");
+    }).catch(function(e){ setBusy(false); setNotice("Error: "+(e&&e.message?e.message:String(e))); });
+  }
+
+  function doRestore(){
+    if(!confirmSlot) return;
+    setRestoring(true);
+    Promise.resolve(onRestore?onRestore(confirmSlot):Promise.reject(new Error("sin manejador"))).then(function(){
+      setRestoring(false); setConfirmSlot(null); setNotice("Copia restaurada correctamente.");
+    }).catch(function(e){
+      setRestoring(false); setNotice("Error al restaurar: "+(e&&e.message?e.message:String(e)));
+    });
+  }
+
+  return h("div",{className:"tab-content-wrap",style:{padding:16,maxWidth:860,margin:"0 auto",paddingBottom:90}},
+    h("h2",{className:"title-font",style:{fontSize:20,margin:"0 0 4px",color:T.text}},"Copias de seguridad"),
+    h("p",{style:{margin:"0 0 16px",color:T.textMid,fontSize:13}},"Tres copias independientes de la hoja de Google Sheets, con fecha y hora. Elegí cuál restaurar si el archivo se corrompe."),
+
+    h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:"14px",marginBottom:16}},
+      h("div",null,
+        h("p",{style:{margin:0,fontWeight:700,color:T.text,fontSize:13}},"☁ Google Drive"),
+        h("p",{style:{margin:"3px 0 0",color:T.textSoft,fontSize:11}},"Las copias se guardan automáticamente en la carpeta GestionObra_Backups de tu Drive, cada vez que hacés cambios.")
+      )
+    ),
+
+    h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}},
+      h("button",{onClick:doBackupNow,disabled:busy,style:{padding:"9px 16px",background:"#10b981",color:"white",border:"none",borderRadius:10,cursor:busy?"not-allowed":"pointer",fontWeight:600,fontSize:13,fontFamily:"inherit"}},busy?"Guardando...":"Crear copias ahora"),
+      notice&&h("span",{style:{color:"#059669",fontSize:12,fontWeight:600}},notice)
+    ),
+
+    loading
+      ?h("div",{style:{textAlign:"center",padding:30,color:T.textSoft}},h(Spinner,{size:24}))
+      :BACKUP_SLOTS.map(function(slot){
+          var info=infoDe(slot.id);
+          var ts=info&&info.ts?info.ts:0;
+          var counts=info&&info.counts?info.counts:null;
+          var has=!!(info&&info.exists);
+          return h("div",{key:slot.id,style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:"14px",marginBottom:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}},
+            h("div",{style:{flex:1,minWidth:220}},
+              h("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+                h("p",{style:{margin:0,fontWeight:700,color:T.text,fontSize:14}},slot.label),
+                has&&h("span",{style:{padding:"1px 8px",borderRadius:20,background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700}},"☁ Drive"),
+                !has&&h("span",{style:{padding:"1px 8px",borderRadius:20,background:"#f1f5f9",color:T.textSoft,fontSize:10,fontWeight:700}},"aún sin crear")
+              ),
+              h("p",{style:{margin:"3px 0 0",color:T.textSoft,fontSize:11}},slot.desc),
+              h("p",{style:{margin:"4px 0 0",color:T.textMid,fontSize:11}},
+                "Última actualización: "+(ts?fmtDateTime(ts):"nunca")+(counts?("  ·  "+counts.trabajos+" trabajos, "+counts.presupuestos+" presupuestos, "+counts.clientes+" clientes"):"")
+              )
+            ),
+            h("button",{
+              onClick:function(){ setConfirmSlot(slot.id); },
+              disabled:!has,
+              style:{padding:"8px 14px",borderRadius:8,border:"1px solid "+(has?"#fecaca":"#e2e8f0"),background:has?"#fef2f2":"#f8fafc",color:has?"#dc2626":"#cbd5e1",cursor:has?"pointer":"not-allowed",fontSize:12,fontWeight:700,fontFamily:"inherit"}
+            },"Restaurar copia")
+          );
+        }),
+
+    confirmSlot&&h("div",{style:{position:"fixed",inset:0,background:"rgba(10,15,32,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:14}},
+      h("div",{style:{background:T.surface,borderRadius:18,padding:"22px 24px",maxWidth:440,width:"100%",boxShadow:"0 25px 80px rgba(0,0,0,.4)",animation:"popupSlideIn .25s cubic-bezier(0.16,1,0.3,1) forwards"}},
+        h("h3",{className:"title-font",style:{margin:"0 0 8px",color:"#dc2626",fontSize:16}},"¿Restaurar esta copia?"),
+        h("p",{style:{margin:"0 0 10px",color:T.textMid,fontSize:13,lineHeight:1.5}},
+          "Vas a reemplazar los datos actuales por la copia «"+slotLabel(confirmSlot)+"»"+
+          ((infoDe(confirmSlot)&&infoDe(confirmSlot).ts)?" del "+fmtDateTime(infoDe(confirmSlot).ts):"")+". "+
+          "Se perderán todos los cambios realizados después de esa fecha."
+        ),
+        h("div",{style:{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#92400e",marginBottom:14}},"Antes de restaurar, el backend guarda una copia del estado actual, por si querés revertir."),
+        h("div",{style:{display:"flex",gap:8,justifyContent:"flex-end"}},
+          h("button",{onClick:function(){ setConfirmSlot(null); },disabled:restoring,style:{padding:"9px 14px",borderRadius:8,border:"1px solid "+T.border,background:T.surfaceAlt,color:T.textMid,cursor:"pointer",fontSize:13,fontFamily:"inherit"}},"Cancelar"),
+          h("button",{onClick:doRestore,disabled:restoring,style:{padding:"9px 16px",borderRadius:8,border:"none",background:"#dc2626",color:"white",cursor:restoring?"not-allowed":"pointer",fontWeight:700,fontSize:13,fontFamily:"inherit"}},restoring?"Restaurando...":"Sí, restaurar")
+        )
+      )
+    )
+  );
+}
+
 /* --- App --- */
 function App(){
   var liS=useState(false); var loggedIn=liS[0], setLoggedIn=liS[1];
@@ -2606,6 +2776,14 @@ function App(){
   var bqS=useState(""); var busqueda=bqS[0], setBusqueda=bqS[1];
   var maS=useState(false); var mostrarArch=maS[0], setMostrarArch=maS[1];
   var mfpS=useState(false); var mostrarFinPend=mfpS[0], setMostrarFinPend=mfpS[1];
+  // Filtros avanzados
+  var feS=useState(""); var filtEstado=feS[0], setFiltEstado=feS[1];
+  var fmoS=useState(""); var filtMoneda=fmoS[0], setFiltMoneda=fmoS[1];
+  var fcS=useState(""); var filtCliente=fcS[0], setFiltCliente=fcS[1];
+  var fdS=useState(""); var filtDesde=fdS[0], setFiltDesde=fdS[1];
+  var fhS=useState(""); var filtHasta=fhS[0], setFiltHasta=fhS[1];
+  var fsS=useState("fecha_desc"); var filtSort=fsS[0], setFiltSort=fsS[1];
+  var foS=useState(false); var filtrosOpen=foS[0], setFiltrosOpen=foS[1];
 
   var clientesHook=useClientes(loggedIn,function(m,t){ showToast(m,t); });
   var presupuestosHook=usePresupuestos(loggedIn,function(m,t){ showToast(m,t); });
@@ -2615,9 +2793,7 @@ function App(){
   var pdfState=useState(null);
   var pdfModal=pdfState[0], setPdfModal=pdfState[1];
 
-  var daS=useState(false); var dragActive=daS[0], setDragActive=daS[1];
   var dpS=useState(null); var dropboxPick=dpS[0], setDropboxPick=dpS[1];
-  var dragCounterRef=useRef(0);
 
   function showToast(message,type){
     var id=Date.now()+Math.random();
@@ -2636,24 +2812,6 @@ function App(){
       cancel:function(){}
     });
   }
-
-  useEffect(function(){
-    function hasFiles(e){ return e.dataTransfer&&Array.prototype.indexOf.call(e.dataTransfer.types||[],"Files")!==-1; }
-    function onDragEnter(e){ if(!hasFiles(e)) return; e.preventDefault(); dragCounterRef.current+=1; setDragActive(true); }
-    function onDragOver(e){ if(!hasFiles(e)) return; e.preventDefault(); }
-    function onDragLeave(e){ if(!hasFiles(e)) return; e.preventDefault(); dragCounterRef.current=Math.max(0,dragCounterRef.current-1); if(dragCounterRef.current===0) setDragActive(false); }
-    function onDrop(e){ if(!hasFiles(e)) return; e.preventDefault(); dragCounterRef.current=0; setDragActive(false); openDropboxChooser(); }
-    window.addEventListener("dragenter",onDragEnter);
-    window.addEventListener("dragover",onDragOver);
-    window.addEventListener("dragleave",onDragLeave);
-    window.addEventListener("drop",onDrop);
-    return function(){
-      window.removeEventListener("dragenter",onDragEnter);
-      window.removeEventListener("dragover",onDragOver);
-      window.removeEventListener("dragleave",onDragLeave);
-      window.removeEventListener("drop",onDrop);
-    };
-  },[]);
 
   function handleAsignarPresupuesto(obraId){
     var updated=trabajos.map(function(t){
@@ -2681,9 +2839,18 @@ function App(){
   var fmS=useState(emptyForm); var form=fmS[0], setForm=fmS[1];
   var sdS=useState(false); var saved=sdS[0], setSaved=sdS[1];
 
+  // Contador de escrituras en vuelo: evita que un refresco pise cambios sin guardar
+  var pendingWritesRef=useRef(0);
+
   var loadTrabajos=useCallback(function(){
+    if(pendingWritesRef.current>0){ showToast("Hay cambios guardándose. Esperá un instante y volvé a intentar.","info"); return; }
     setLoading(true); setApiError("");
     api.get("getAll").then(function(res){
+      if(res && res.error==="NO_AUTORIZADO"){
+        setSessionToken(null); setLoggedIn(false);
+        showToast("Sesión vencida. Volvé a ingresar.","warning");
+        return;
+      }
       if(res.error){ setApiError("Error: "+res.error); setTrabajos([]); }
       else {
         var ts=(res.trabajos||[]).map(function(t){ return Object.assign({},t,{fecha:normFecha(t.fecha)}); });
@@ -2709,11 +2876,12 @@ function App(){
   function handleAdd(){
     if(!form.obra.trim()) return;
     setSaving(true);
+    pendingWritesRef.current++;
     var nuevo=merge(form,{
       id:String(Date.now()),monto:parseMoney(form.monto),anticipo:parseMoney(form.anticipo),
       cantCuotas:parseInt(form.cantCuotas)||1,facturado:false,nroFactura:"",
       anticipoPagado:!!form.anticipoPagado,facturaAnticipo:"",pagoPagado:false,facturaFull:"",
-      moneda:form.moneda||"ARS",clienteId:form.clienteId||"",
+      moneda:form.moneda||"ARS",clienteId:form.clienteId||"",updatedAt:Date.now(),
       fechaPagoAnticipo:form.anticipoPagado?form.fecha:"",
       cuotas:calcCuotas(form.monto,form.anticipo,form.cantCuotas,form.fecha)
     });
@@ -2726,26 +2894,33 @@ function App(){
         setTimeout(function(){ setSaved(false); },2000);
       } else setApiError("Error al guardar: "+res.error);
       setSaving(false);
-    }).catch(function(){ setApiError("Error de conexión."); setSaving(false); });
+      pendingWritesRef.current--;
+    }).catch(function(){ setApiError("Error de conexión."); setSaving(false); pendingWritesRef.current--; });
   }
 
   function updateRemote(upd){
-    if(!upd) return;
+    if(!upd) return Promise.resolve(false);
+    pendingWritesRef.current++;
     setSavingId(upd.id);
-    api.post("update",{data:upd}).then(function(res){
+    var withStamp=merge(upd,{updatedAt:Date.now()});
+    return api.post("update",{data:withStamp}).then(function(res){
       if(!res.ok) setApiError("Error al actualizar.");
       setSavingId(null);
-    }).catch(function(){ setApiError("Error."); setSavingId(null); });
+      pendingWritesRef.current--;
+      return !!res.ok;
+    }).catch(function(){ setApiError("Error."); setSavingId(null); pendingWritesRef.current--; return false; });
   }
 
   function handleDelete(id){
     if(!window.confirm("¿Eliminar este trabajo?")) return;
+    pendingWritesRef.current++;
     setSavingId(id);
     api.post("delete",{id:id}).then(function(res){
       if(res.ok){ setTrabajos(function(t){ return t.filter(function(x){ return x.id!==id; }); }); showToast("Obra eliminada","warning"); }
       else setApiError("Error al eliminar.");
       setSavingId(null);
-    }).catch(function(){ setApiError("Error."); setSavingId(null); });
+      pendingWritesRef.current--;
+    }).catch(function(){ setApiError("Error."); setSavingId(null); pendingWritesRef.current--; });
   }
 
   function handleStatus(id,estado){
@@ -2853,7 +3028,7 @@ function App(){
     trabajos.forEach(function(t){
       (t.cuotas||[]).forEach(function(c){
         if(!c.pagada&&!c.indefinida&&!c.alertaLeida){
-          var diff=Math.ceil((new Date(c.fecha)-new Date())/86400000);
+          var diff=Math.round((parseDateLocal(c.fecha)-parseDateLocal(todayStr()))/86400000);
           if(diff<=30) arr.push({tipo:"pago",obraId:t.id,trabajo:t.obra,fecha:c.fecha,monto:c.monto,diff:diff,id:t.id+"-"+c.id});
         }
       });
@@ -2892,26 +3067,77 @@ function App(){
       return merge(t,{cuotas:updatedCuotas,facturaAlertaLeida:true});
     });
     setTrabajos(updated);
-    updated.forEach(function(t){ updateRemote(t); });
-    showToast("Todas las alertas fueron marcadas como leídas","success");
+    // Se envían de a una (en serie) para no saturar el backend y evitar carreras entre writes
+    var chain=Promise.resolve();
+    updated.forEach(function(t){ chain=chain.then(function(){ return updateRemote(t); }); });
+    chain.then(function(){ showToast("Todas las alertas fueron marcadas como leídas","success"); });
+  }
+
+  /* ---- Copias de seguridad: se disparan en el backend (Google Drive) ---- */
+  var backupTimerRef=useRef(null);
+  function runBackupNow(force){
+    return api.post("backupCreate",{force:!!force});
+  }
+
+  // Respaldo automático (debounced) tras cada cambio en trabajos/clientes/presupuestos
+  useEffect(function(){
+    if(!loggedIn || loading) return;
+    if(backupTimerRef.current) clearTimeout(backupTimerRef.current);
+    backupTimerRef.current=setTimeout(function(){
+      if(pendingWritesRef.current>0 || clientesHook.syncing>0 || presupuestosHook.syncing>0) return;
+      runBackupNow(false);
+    }, 2500);
+    return function(){ if(backupTimerRef.current) clearTimeout(backupTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[trabajos, clientesHook.clientes, presupuestosHook.presupuestos, loggedIn, loading]);
+
+  function restoreBackup(slotId){
+    return api.post("backupRestore",{slot:slotId}).then(function(res){
+      if(!res || !res.ok) throw new Error(res && res.error ? res.error : "Error al restaurar");
+      loadTrabajos();
+      clientesHook.reload();
+      presupuestosHook.reload();
+      showToast("Datos restaurados desde la copia de seguridad","success");
+      return true;
+    });
   }
 
   var goS=useState({}); var groupOpenMap=goS[0], setGroupOpenMap=goS[1];
   var ugS=useState({}); var ungroupedKeys=ugS[0], setUngroupedKeys=ugS[1];
 
+  var clientesNombreMap=useMemo(function(){
+    var m={}; (clientesHook.clientes||[]).forEach(function(c){ m[c.id]=(c.nombre||"").toLowerCase(); });
+    return m;
+  },[clientesHook.clientes]);
+
   var trabajosFiltrados=useMemo(function(){
-    var list=trabajos.slice().sort(function(a,b){
-      var fa=normFecha(a.fecha||""), fb=normFecha(b.fecha||"");
-      if(fb>fa) return 1; if(fb<fa) return -1; return 0;
-    });
+    var list=trabajos.slice();
+    // Orden
+    if(filtSort==="fecha_asc"){ list.sort(function(a,b){ return normFecha(a.fecha||"").localeCompare(normFecha(b.fecha||"")); }); }
+    else if(filtSort==="pend_desc"){ list.sort(function(a,b){ return calcTotals(b).pendiente-calcTotals(a).pendiente; }); }
+    else if(filtSort==="monto_desc"){ list.sort(function(a,b){ return parseMoney(b.monto)-parseMoney(a.monto); }); }
+    else if(filtSort==="nombre"){ list.sort(function(a,b){ return (a.obra||"").localeCompare(b.obra||"","es",{sensitivity:"base"}); }); }
+    else { list.sort(function(a,b){ var fa=normFecha(a.fecha||""), fb=normFecha(b.fecha||""); if(fb>fa) return 1; if(fb<fa) return -1; return 0; }); }
+    // Archivadas / activas
     list=list.filter(function(t){ return mostrarArch?esArchivado(t):!esArchivado(t); });
     if(mostrarFinPend){ list=list.filter(function(t){ return t.estado==="finalizado"&&calcTotals(t).pendiente>0; }); }
+    // Filtros avanzados
+    if(filtEstado){ list=list.filter(function(t){ return t.estado===filtEstado; }); }
+    if(filtMoneda){ list=list.filter(function(t){ return (t.moneda||"ARS")===filtMoneda; }); }
+    if(filtCliente){ list=list.filter(function(t){ return t.clienteId===filtCliente; }); }
+    if(filtDesde||filtHasta){ list=list.filter(function(t){ var f=normFecha(t.fecha||""); if(filtDesde&&f<filtDesde) return false; if(filtHasta&&f>filtHasta) return false; return true; }); }
+    // Búsqueda de texto (obra, descripción o cliente)
     if(busqueda.trim()){
       var q=busqueda.trim().toLowerCase();
-      list=list.filter(function(t){ return (t.obra||"").toLowerCase().indexOf(q)!==-1||(t.descripcion||"").toLowerCase().indexOf(q)!==-1; });
+      list=list.filter(function(t){
+        if((t.obra||"").toLowerCase().indexOf(q)!==-1) return true;
+        if((t.descripcion||"").toLowerCase().indexOf(q)!==-1) return true;
+        if(t.clienteId && clientesNombreMap[t.clienteId] && clientesNombreMap[t.clienteId].indexOf(q)!==-1) return true;
+        return false;
+      });
     }
     return list;
-  },[trabajos,busqueda,mostrarArch,mostrarFinPend]);
+  },[trabajos,busqueda,mostrarArch,mostrarFinPend,filtEstado,filtMoneda,filtCliente,filtDesde,filtHasta,filtSort,clientesNombreMap]);
 
   var trabajosGrupos=useMemo(function(){
     var map={};
@@ -2942,6 +3168,11 @@ function App(){
 
   var iS={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
   var lS={display:"block",color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em",marginBottom:5};
+  var filtrosActivos=(filtEstado?1:0)+(filtMoneda?1:0)+(filtCliente?1:0)+(filtDesde?1:0)+(filtHasta?1:0);
+  var fltInp={width:"100%",background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"7px 9px",color:T.text,fontSize:12,outline:"none",fontFamily:"inherit",cursor:"pointer"};
+  var clientesParaFiltro=useMemo(function(){
+    return (clientesHook.clientes||[]).slice().sort(function(a,b){ return (a.nombre||"").localeCompare(b.nombre||"","es",{sensitivity:"base"}); });
+  },[clientesHook.clientes]);
 
   if(!loggedIn) return h(Login,{onLogin:function(){ playLoginSound(); setLoggedIn(true); }});
 
@@ -2968,7 +3199,7 @@ function App(){
         h("div",{className:"hdr-sep-desktop",style:{width:1,height:22,background:"rgba(255,255,255,0.15)",margin:"0 12px",flexShrink:0}}),
         h("span",{className:"hdr-title title-font",style:{fontSize:15,color:"#f8fafc",whiteSpace:"nowrap",letterSpacing:"-0.01em",opacity:0.88}},"GestionObra 3.0"),
         h("div",{className:"hdr-tabs",style:{display:"flex",gap:4,alignItems:"center",justifyContent:"flex-end",marginLeft:"auto",flexShrink:0}},
-          [["trabajos","Trabajos"],["presupuestos","Presupuestos"],["clientes","Clientes"],["alertas","Alertas"],["balance","Balance"]].map(function(kv){
+          [["trabajos","Trabajos"],["presupuestos","Presupuestos"],["clientes","Clientes"],["alertas","Alertas"],["balance","Balance"],["backups","Respaldos"]].map(function(kv){
             var sel=activeTab===kv[0];
             return h("button",{key:kv[0],onClick:function(){setActiveTab(kv[0]);},className:"hdr-btn",style:{padding:"6px 12px",borderRadius:8,border:sel?"1px solid rgba(255,255,255,0.2)":"1px solid transparent",cursor:"pointer",fontSize:12.5,background:sel?"rgba(255,255,255,0.15)":"transparent",color:sel?"#ffffff":"#94a3b8",position:"relative",fontFamily:"inherit",fontWeight:sel?700:500,transition:"all .15s"}},
               kv[1],
@@ -2989,7 +3220,9 @@ function App(){
     h("div",{key:activeTab,style:{animation:"slideTab 0.25s ease-out forwards",willChange:"transform, opacity"}},
       activeTab==="balance"
         ?h(BalanceTab,{trabajos:trabajos})
-        :activeTab==="presupuestos"
+        :activeTab==="backups"
+          ?h(BackupsTab,{onBackupNow:function(){ return runBackupNow(true); },onRestore:restoreBackup})
+          :activeTab==="presupuestos"
           ?h(PresupuestosTab,{
               onAccept:function(nuevo){
                 return api.post("save",{data:nuevo}).then(function(res){
@@ -3046,7 +3279,8 @@ function App(){
               h("div",{style:{marginBottom:10}},h("label",{style:lS},"OBRA"),h("input",{value:form.obra,onChange:function(e){setField("obra",e.target.value);},placeholder:"Nombre de la obra",style:iS})),
               h("div",{style:{marginBottom:10}},h("label",{style:lS},"CLIENTE"),h(ClientSelect,{clientes:clientesHook.clientes,value:form.clienteId,onChange:function(v){setField("clienteId",v);},onAdd:function(n){ var nm=n||form.obra; if(nm){ var id="c_"+Date.now(); clientesHook.saveCliente({id:id,nombre:nm}); setField("clienteId",id); } }})),
               h("div",{style:{marginBottom:10}},h("label",{style:lS},"DESCRIPCION"),h("textarea",{value:form.descripcion,onChange:function(e){setField("descripcion",e.target.value);},placeholder:"Detalles...",rows:2,style:merge(iS,{resize:"vertical",lineHeight:1.5})})),
-              h("div",{style:{marginBottom:10}},h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:form.presupuestoUrl||"",onChange:function(e){setField("presupuestoUrl",e.target.value);},placeholder:"https://www.dropbox.com/... o Google Drive link",style:iS})),
+              h("div",{style:{marginBottom:10}},h("label",{style:lS},"ENLACE PRESUPUESTO (DROPBOX / DRIVE PDF)"),h("input",{value:form.presupuestoUrl||"",onChange:function(e){setField("presupuestoUrl",e.target.value);},placeholder:"https://www.dropbox.com/... o Google Drive link",style:iS}),
+                h("button",{onClick:function(){openDropboxChooser();},style:{marginTop:6,width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#2563eb",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"📎 Elegir archivo de Dropbox")),
               h("div",{style:{marginBottom:10}},h("label",{style:lS},"ESTADO"),
                 h("select",{value:form.estado,onChange:function(e){setField("estado",e.target.value);},style:merge(iS,{cursor:"pointer"})},
                   Object.keys(STATUS).map(function(k){ return h("option",{key:k,value:k},STATUS[k].label); })
@@ -3099,10 +3333,18 @@ function App(){
 
             h("div",{className:"rpanel"},
               h("div",{style:{position:"sticky",top:0,zIndex:10,background:T.bg,paddingTop:"14px",paddingBottom:9,marginBottom:2}},
-                h("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:6}},
-                  h("div",{style:{position:"relative",flex:1}},
-                    h("input",{type:"text",value:busqueda,onChange:function(e){setBusqueda(e.target.value);},placeholder:"Buscar obra o descripción...",style:{width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 35px 9px 13px",color:T.text,fontSize:13,outline:"none",boxShadow:"0 1px 4px rgba(0,0,0,.05)",fontFamily:"inherit"}}),
+                h("div",{style:{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}},
+                  h("div",{style:{position:"relative",flex:1,minWidth:180}},
+                    h("input",{type:"text",value:busqueda,onChange:function(e){setBusqueda(e.target.value);},placeholder:"Buscar obra, descripción o cliente...",style:{width:"100%",background:T.surface,border:"1px solid "+T.border,borderRadius:10,padding:"9px 35px 9px 13px",color:T.text,fontSize:13,outline:"none",boxShadow:"0 1px 4px rgba(0,0,0,.05)",fontFamily:"inherit"}}),
                     busqueda&&h("button",{onClick:function(){setBusqueda("");},style:{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:T.textSoft,fontSize:15,lineHeight:1}},"X")
+                  ),
+                  h("button",{
+                    onClick:function(){ setFiltrosOpen(function(v){ return !v; }); },
+                    style:{flexShrink:0,padding:"8px 12px",borderRadius:10,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",
+                      background:(filtrosOpen||filtrosActivos>0)?"#1e293b":T.surfaceAlt,border:"1px solid "+((filtrosOpen||filtrosActivos>0)?"#334155":T.border),
+                      color:(filtrosOpen||filtrosActivos>0)?"#e2e8f0":T.textMid,transition:"all .2s"}
+                  },
+                    "Filtros"+(filtrosActivos>0?" ("+filtrosActivos+")":"")
                   ),
                   h("button",{
                     onClick:function(){setMostrarArch(function(v){ return !v; }); setBusqueda("");},
@@ -3121,10 +3363,57 @@ function App(){
                     mostrarFinPend?"Ver todos":"Pendientes de cobro"
                   )
                 ),
+                filtrosOpen&&h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:12,padding:"12px",marginBottom:8,boxShadow:"0 2px 8px rgba(0,0,0,.05)"}},
+                  h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}},
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"ESTADO"),
+                      h("select",{value:filtEstado,onChange:function(e){setFiltEstado(e.target.value);},style:fltInp},
+                        h("option",{value:""},"Todos"),
+                        Object.keys(STATUS).map(function(k){ return h("option",{key:k,value:k},STATUS[k].label); })
+                      )
+                    ),
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"MONEDA"),
+                      h("select",{value:filtMoneda,onChange:function(e){setFiltMoneda(e.target.value);},style:fltInp},
+                        h("option",{value:""},"Todas"),
+                        h("option",{value:"ARS"},"Pesos ($)"),
+                        h("option",{value:"USD"},"Dólares (U$S)")
+                      )
+                    ),
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"CLIENTE"),
+                      h("select",{value:filtCliente,onChange:function(e){setFiltCliente(e.target.value);},style:fltInp},
+                        h("option",{value:""},"Todos"),
+                        clientesParaFiltro.map(function(c){ return h("option",{key:c.id,value:c.id},c.nombre); })
+                      )
+                    ),
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"DESDE"),
+                      h("input",{type:"date",value:filtDesde,onChange:function(e){setFiltDesde(e.target.value);},style:fltInp})
+                    ),
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"HASTA"),
+                      h("input",{type:"date",value:filtHasta,onChange:function(e){setFiltHasta(e.target.value);},style:fltInp})
+                    ),
+                    h("div",null,
+                      h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:T.textSoft,letterSpacing:".05em",marginBottom:4}},"ORDENAR POR"),
+                      h("select",{value:filtSort,onChange:function(e){setFiltSort(e.target.value);},style:fltInp},
+                        h("option",{value:"fecha_desc"},"Más reciente"),
+                        h("option",{value:"fecha_asc"},"Más antiguo"),
+                        h("option",{value:"pend_desc"},"Mayor pendiente"),
+                        h("option",{value:"monto_desc"},"Mayor monto"),
+                        h("option",{value:"nombre"},"Nombre A-Z")
+                      )
+                    )
+                  ),
+                  h("div",{style:{marginTop:10,display:"flex",justifyContent:"flex-end"}},
+                    h("button",{onClick:function(){ setFiltEstado(""); setFiltMoneda(""); setFiltCliente(""); setFiltDesde(""); setFiltHasta(""); setFiltSort("fecha_desc"); },style:{padding:"6px 12px",borderRadius:8,border:"1px solid "+T.border,background:T.surfaceAlt,color:T.textMid,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Limpiar filtros")
+                  )
+                ),
                 h("p",{style:{color:T.textSoft,fontSize:11,margin:"0 0 0 2px"}},
                   mostrarArch
                     ?(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" archivada"+(trabajosFiltrados.length!==1?"s":""))
-                    :(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" activa"+(trabajosFiltrados.length!==1?"s":"")+(busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"")+" - más reciente primero")
+                    :(trabajosFiltrados.length+" obra"+(trabajosFiltrados.length!==1?"s":"")+" activa"+(trabajosFiltrados.length!==1?"s":"")+(busqueda?" encontrada"+(trabajosFiltrados.length!==1?"s":""):"")+(filtrosActivos>0?" con filtros":""))
                 )
               ),
               loading
@@ -3205,14 +3494,6 @@ function App(){
       onPick:handleAsignarPresupuesto,
       onClose:function(){ setDropboxPick(null); }
     }),
-
-    dragActive&&h("div",{className:"dropbox-overlay"},
-      h("div",{className:"dropbox-overlay-box"},
-        h("span",{style:{fontSize:46}},"📥"),
-        h("p",{className:"title-font",style:{margin:0,color:"#1e293b",fontSize:18}},"Suelte su archivo aquí"),
-        h("p",{style:{margin:0,color:"#64748b",fontSize:12,textAlign:"center",maxWidth:260}},"Al soltarlo se abrirá el selector de Dropbox para confirmar el archivo y tomar su enlace")
-      )
-    ),
 
     h("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"linear-gradient(135deg,#1e293b,#0f172a)",borderTop:"1px solid #334155",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6,boxShadow:"0 -4px 16px rgba(0,0,0,.2)"}},
       h("div",{style:{display:"flex",alignItems:"center",gap:8}},
