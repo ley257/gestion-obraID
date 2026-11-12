@@ -825,9 +825,11 @@ function LogoImg(props){
 }
 
 function BalanceChart(props){
-  var data=props.data, type=props.type, title=props.title;
+  var data=props.data, type=props.type, title=props.title, onSegmentClick=props.onSegmentClick;
   var canvasRef=useRef(null);
   var chartInst=useRef(null);
+  var clickRef=useRef(onSegmentClick);
+  clickRef.current=onSegmentClick;
 
   useEffect(function(){
     if(!canvasRef.current) return;
@@ -840,6 +842,13 @@ function BalanceChart(props){
       options:{
         responsive:true,
         maintainAspectRatio:false,
+        onClick:function(evt,elements,chart){
+          var cb=clickRef.current;
+          if(!cb || !elements || elements.length===0) return;
+          var idx=elements[0].index;
+          var label=chart.data.labels[idx];
+          if(label!==undefined && label!==null) cb(String(label));
+        },
         plugins:{
           legend:{display:false},
           title:{display:!!title,text:title,font:{family:"'DM Serif Display', serif",size:14,weight:'bold'}}
@@ -852,7 +861,7 @@ function BalanceChart(props){
     return function(){ if(chartInst.current) chartInst.current.destroy(); };
   },[data,type,title]);
 
-  return h("div",{style:{position:"relative",height:560,width:"100%"}}, h("canvas",{ref:canvasRef}));
+  return h("div",{style:{position:"relative",height:340,width:"100%"}}, h("canvas",{ref:canvasRef}));
 }
 
 
@@ -1544,7 +1553,7 @@ function BalanceTab(props){
   var defFin=addDays(todayStr(),-30);
   var dsS=useState(defFin); var dateStart=dsS[0], setDateStart=dsS[1];
   var deS=useState(todayStr()); var dateEnd=deS[0], setDateEnd=deS[1];
-  var selS=useState(null); var selObra=selS[0], setSelObra=selS[1];
+  var filS=useState(null); var filtro=filS[0], setFiltro=filS[1];
   var monS=useState("ARS"); var monFilter=monS[0], setMonFilter=monS[1];
   var monSym=monFilter==="USD"?"U$S ":"$ ";
 
@@ -1672,7 +1681,32 @@ function BalanceTab(props){
     };
   },[porObra,porTipo,porMes,porBarrio,proyeccionesFuturas,groupBy,monFilter]);
 
-  var detalle=selObra?cobros.filter(function(c){ return c.obra===selObra; }):cobros;
+  var detalle=useMemo(function(){
+    if(!filtro) return cobros;
+    return cobros.filter(function(c){
+      if(filtro.kind==="obra") return c.obra===filtro.label;
+      if(filtro.kind==="tipo") return c.tipo===filtro.label;
+      if(filtro.kind==="mes") return (c.fecha||"").substring(0,7)===filtro.label;
+      if(filtro.kind==="barrio") return (barrioMap[c.obra]||"Pendiente...")===filtro.label;
+      return true;
+    });
+  },[cobros,filtro,barrioMap]);
+
+  var segmentos=useMemo(function(){
+    if(groupBy==="obra") return porObra;
+    if(groupBy==="tipo") return porTipo;
+    if(groupBy==="mes") return porMes;
+    if(groupBy==="barrio") return porBarrio;
+    return proyeccionesFuturas;
+  },[groupBy,porObra,porTipo,porMes,porBarrio,proyeccionesFuturas]);
+
+  function handleSegmentClick(label){
+    var kind=groupBy;
+    if(kind==="proyeccion") return; // la proyección no filtra cobros pasados
+    if(filtro && filtro.kind===kind && filtro.label===label){ setFiltro(null); }
+    else { setFiltro({kind:kind, label:label}); }
+  }
+
   var iS={background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"};
 
   function exportarBalancePDF(){ printHTML(buildBalanceHTML(cobros,totalPeriodo,porObra,porTipo,dateStart,dateEnd,monFilter),"balance"); }
@@ -1712,7 +1746,7 @@ function BalanceTab(props){
       h("div",{style:{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}},
         h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
           h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"MONEDA"),
-          h("select",{value:monFilter,onChange:function(e){setMonFilter(e.target.value); setSelObra(null);},style:iS},
+          h("select",{value:monFilter,onChange:function(e){setMonFilter(e.target.value); setFiltro(null);},style:iS},
             h("option",{value:"ARS"},"ARS ($ Pesos)"),
             h("option",{value:"USD"},"USD (U$S Dólares)")
           )
@@ -1727,7 +1761,7 @@ function BalanceTab(props){
         ),
         h("div",{style:{display:"flex",flexDirection:"column",gap:4}},
           h("label",{style:{fontSize:11,color:T.textSoft,fontWeight:700}},"AGRUPAR POR"),
-          h("select",{value:groupBy,onChange:function(e){setGroupBy(e.target.value);},style:iS},
+          h("select",{value:groupBy,onChange:function(e){setGroupBy(e.target.value); setFiltro(null);},style:iS},
             h("option",{value:"obra"},"Obras"),
             h("option",{value:"tipo"},"Tipo de cobro"),
             h("option",{value:"mes"},"Mes de cobro"),
@@ -1776,51 +1810,44 @@ function BalanceTab(props){
             h(BalanceChart,{
               type:chartType,
               data:chartData,
+              onSegmentClick:handleSegmentClick,
               title:groupBy==="obra"?"Cobros por Obra"
                 :groupBy==="tipo"?"Cobros por Tipo de pago"
                 :groupBy==="barrio"?"\uD83C\uDFD9\uFE0F Ingresos por Barrio — CABA"
                 :groupBy==="proyeccion"?"Proyección de ingresos (Cash Flow)"
                 :"Tendencia mensual de cobros"
             }),
-            groupBy==="barrio"&&porBarrio.length>0&&h("div",{style:{marginTop:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6}},
-              porBarrio.map(function(item,i){
-                var EXTENDED_COLORS=["#2563eb","#7c3aed","#db2777","#ea580c","#16a34a","#0891b2","#ca8a04","#dc2626","#4f46e5","#059669","#f59e0b","#8b5cf6","#ec4899","#10b981","#3b82f6","#ef4444","#06b6d4","#84cc16","#f97316","#a855f7","#14b8a6","#e11d48","#6366f1","#22c55e","#eab308"];
-                var color=EXTENDED_COLORS[i%EXTENDED_COLORS.length];
-                var total=porBarrio.reduce(function(s,b){ return s+b.value; },0);
-                var pct=total>0?Math.round((item.value/total)*100):0;
-                return h("div",{key:item.label,style:{display:"flex",alignItems:"center",gap:8,background:T.surfaceAlt,border:"1px solid "+T.border,borderRadius:8,padding:"7px 10px",borderLeft:"3px solid "+color}},
-                  h("div",{style:{flex:1,minWidth:0}},
-                    h("p",{style:{margin:0,fontWeight:700,fontSize:12,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},item.label),
-                    h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},monSym+fmt(item.value)+" · "+pct+"%")
-                  ),
-                  h("div",{style:{minWidth:32,height:32,borderRadius:8,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:color}},pct+"%")
-                );
-              })
-            ),
-            groupBy==="barrio"&&porBarrio.length>0&&h("div",{style:{marginTop:16,background:T.surfaceAlt,borderRadius:10,border:"1px solid "+T.border,overflow:"hidden"}},
-              h("div",{style:{padding:"10px 14px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-                h("p",{style:{margin:0,fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:".07em"}},"DETALLE DE OBRAS POR BARRIO"),
-                barrioResolving&&h(Spinner,{size:13,color:T.accent})
+            segmentos.length>0&&h("div",{style:{marginTop:16}},
+              h("p",{style:{margin:"0 0 8px",fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:".06em",textTransform:"uppercase"}},
+                groupBy==="proyeccion"?"Proyección futura por mes (no filtra la tabla)":"Hacé click en un segmento para filtrar la tabla"
               ),
-              trabajos.filter(function(t){ return barrioMap[t.obra]; }).map(function(t){
-                var barrio=barrioMap[t.obra]||"-";
-                var cobradoT=cobros.filter(function(c){ return c.obra===t.obra&&(c.moneda||monFilter)===monFilter; }).reduce(function(s,c){ return s+c.monto; },0);
-                if(cobradoT===0) return null;
-                return h("div",{key:t.id,style:{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderBottom:"1px solid "+T.border,flexWrap:"wrap"}},
-                  h("div",{style:{flex:"1 1 180px",minWidth:0}},
-                    h("p",{style:{margin:0,fontWeight:600,fontSize:12,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},t.obra),
-                    h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},barrio)
-                  ),
-                  h("p",{style:{margin:0,fontWeight:700,color:"#16a34a",fontSize:13,fontVariantNumeric:"tabular-nums"}},monSym+fmt(cobradoT))
-                );
-              }).filter(Boolean)
+              h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6}},
+                segmentos.map(function(item,i){
+                  var EXTENDED_COLORS=["#2563eb","#7c3aed","#db2777","#ea580c","#16a34a","#0891b2","#ca8a04","#dc2626","#4f46e5","#059669","#f59e0b","#8b5cf6","#ec4899","#10b981","#3b82f6","#ef4444","#06b6d4","#84cc16","#f97316","#a855f7","#14b8a6","#e11d48","#6366f1","#22c55e","#eab308"];
+                  var color=EXTENDED_COLORS[i%EXTENDED_COLORS.length];
+                  var total=segmentos.reduce(function(s,b){ return s+b.value; },0);
+                  var pct=total>0?Math.round((item.value/total)*100):0;
+                  var active=filtro && filtro.kind===groupBy && filtro.label===item.label;
+                  return h("div",{
+                    key:item.label,
+                    onClick:function(){ handleSegmentClick(item.label); },
+                    style:{display:"flex",alignItems:"center",gap:8,background:active?"#eff6ff":T.surfaceAlt,border:"1px solid "+(active?"#2563eb":T.border),borderRadius:8,padding:"7px 10px",borderLeft:"3px solid "+color,cursor:groupBy==="proyeccion"?"default":"pointer",opacity:groupBy==="proyeccion"?0.85:1,transition:"all .15s"}
+                  },
+                    h("div",{style:{flex:1,minWidth:0}},
+                      h("p",{style:{margin:0,fontWeight:700,fontSize:12,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},item.label),
+                      h("p",{style:{margin:0,fontSize:11,color:T.textSoft}},monSym+fmt(item.value)+" · "+pct+"%")
+                    ),
+                    h("div",{style:{minWidth:32,height:32,borderRadius:8,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:color}},pct+"%")
+                  );
+                })
+              )
             )
           ),
 
           h("div",{style:{background:T.surface,border:"1px solid "+T.border,borderRadius:14,overflow:"hidden"}},
             h("div",{style:{padding:"12px 16px",borderBottom:"1px solid "+T.border,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}},
-              h("p",{style:{margin:0,color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em"}},(selObra?"COBROS DE: "+selObra.toUpperCase():"TODOS LOS COBROS EN EL PERIODO")+" ("+detalle.length+")"),
-              selObra&&h("span",{onClick:function(){setSelObra(null);},style:{cursor:"pointer",color:T.accent,fontSize:11}},"Quitar filtro x")
+              h("p",{style:{margin:0,color:T.textMid,fontSize:11,fontWeight:700,letterSpacing:".07em"}},(filtro?("COBROS DE: "+filtro.label.toUpperCase()+" ("+({obra:"Obra",tipo:"Tipo",mes:"Mes",barrio:"Barrio"}[filtro.kind]||filtro.kind)+")"):"TODOS LOS COBROS EN EL PERIODO")+" ("+detalle.length+")"),
+              filtro&&h("span",{onClick:function(){setFiltro(null);},style:{cursor:"pointer",color:T.accent,fontSize:11}},"Quitar filtro x")
             ),
             detalle.map(function(c,i){
               return h("div",{key:i,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderBottom:i<detalle.length-1?"1px solid "+T.border:"none",flexWrap:"wrap",gap:8}},
